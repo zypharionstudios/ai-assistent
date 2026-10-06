@@ -659,6 +659,7 @@ async function sendWithGmailApi(email, code) {
     const error = new Error(`Google OAuth token request failed (HTTP ${tokenResponse.status}): ${tokenResult.error_description || tokenResult.error || "unknown error"}`);
     error.provider = "gmail";
     error.code = tokenResult.error || "GOOGLE_OAUTH_FAILED";
+    error.providerHttpStatus = tokenResponse.status;
     throw error;
   }
 
@@ -699,6 +700,7 @@ async function sendWithGmailApi(email, code) {
     const error = new Error(`Gmail API rejected the email (HTTP ${sendResponse.status}): ${sendResult.error?.message || "unknown error"}`);
     error.provider = "gmail";
     error.code = sendResult.error?.status || "GMAIL_API_FAILED";
+    error.providerHttpStatus = sendResponse.status;
     throw error;
   }
 }
@@ -708,6 +710,27 @@ function emailDeliveryError(error) {
   if (error.provider === "gmail") {
     if (code === "GMAIL_OAUTH_REQUIRED") {
       return "Gmail-SMTP funktioniert von Render aus nicht. Trage GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN und GMAIL_FROM bei Render ein. Der SMTP-Port 587 wird dafür nicht verwendet.";
+    }
+    if (code === "GMAIL_CONFIG_INCOMPLETE") {
+      return "Mindestens einer der vier Gmail-Werte fehlt bei Render: GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN oder GMAIL_FROM. Prüfe sie beim richtigen Render-Web-Service.";
+    }
+    if (code === "GMAIL_FROM_INVALID") {
+      return "GMAIL_FROM ist keine gültige E-Mail-Adresse. Trage die Gmail-Adresse ein, mit der du den OAuth-Zugang autorisiert hast.";
+    }
+    if (code === "invalid_grant") {
+      return "Google hat den Refresh Token abgelehnt (invalid_grant). Er kann abgelaufen, widerrufen oder für ein anderes OAuth-Projekt erstellt worden sein. Erzeuge im OAuth Playground einen neuen Token mit derselben Client-ID und demselben Client-Secret.";
+    }
+    if (code === "invalid_client") {
+      return "Google erkennt den OAuth-Client nicht (invalid_client). Prüfe, ob GMAIL_OAUTH_CLIENT_ID und GMAIL_OAUTH_CLIENT_SECRET aus demselben OAuth-Client stammen.";
+    }
+    if (code === "invalid_scope" || code === "insufficientPermissions" || code === "PERMISSION_DENIED") {
+      return "Google verweigert die Gmail-Berechtigung. Aktiviere die Gmail API und autorisiere den Scope https://www.googleapis.com/auth/gmail.send; erstelle danach einen neuen Refresh Token.";
+    }
+    if (code === "accessNotConfigured" || code === "SERVICE_DISABLED") {
+      return "Die Gmail API ist für das Google-Cloud-Projekt dieses OAuth-Clients nicht aktiviert. Aktiviere sie im selben Projekt wie die Client-ID und versuche es erneut.";
+    }
+    if (code === "GMAIL_API_FAILED" || code === "UNAUTHENTICATED") {
+      return "Google hat den Gmail-Zugriff abgelehnt. Prüfe, dass GMAIL_FROM das autorisierte Konto ist und der Refresh Token für gmail.send erstellt wurde.";
     }
     return "Der Gmail-HTTPS-Versand ist fehlgeschlagen. Prüfe GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN und GMAIL_FROM bei Render. Für den OAuth-Zugang muss die Gmail-API aktiviert und der Bereich gmail.send freigegeben sein. Details stehen in den Render-Logs.";
   }
