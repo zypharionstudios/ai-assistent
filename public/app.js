@@ -29,6 +29,7 @@ const authEmail = $("#authEmail");
 const authCode = $("#authCode");
 const authError = $("#authError");
 const authSubmit = $("#authSubmit");
+const authResend = $("#authResend");
 const messageInput = $("#messageInput");
 const providerSelect = $("#providerSelect");
 const modelSelect = $("#modelSelect");
@@ -247,11 +248,12 @@ function setAuthenticated(user) {
 function showCodeStep() {
   state.codeRequested = true;
   $("#authTitle").innerHTML = "Nur noch ein<br><span>kleiner Schritt.</span>";
-  $("#authDescription").textContent = `Wir haben einen 6-stelligen Code an ${state.authEmail} geschickt. Er ist 10 Minuten gültig.`;
+  $("#authDescription").textContent = `Gib den 6-stelligen Code ein, den wir an ${state.authEmail} senden. Er ist 10 Minuten gültig.`;
   $("#emailLabel").classList.add("hidden");
   authEmail.classList.add("hidden");
   $("#codeField").classList.remove("hidden");
   authSubmit.innerHTML = "Sicher anmelden <span>→</span>";
+  authResend.classList.remove("hidden");
   const backButton = document.createElement("button");
   backButton.type = "button";
   backButton.className = "auth-back";
@@ -263,6 +265,8 @@ function showCodeStep() {
     $("#emailLabel").classList.remove("hidden");
     authEmail.classList.remove("hidden");
     $("#codeField").classList.add("hidden");
+    authResend.classList.add("hidden");
+    authCode.value = "";
     authSubmit.innerHTML = "Code per E-Mail erhalten <span>→</span>";
     backButton.remove();
     setAuthError("");
@@ -279,8 +283,9 @@ authForm.addEventListener("submit", async (event) => {
   try {
     if (!state.codeRequested) {
       state.authEmail = authEmail.value.trim().toLowerCase();
-      await api("/api/auth/request-code", { method: "POST", body: JSON.stringify({ email: state.authEmail }) });
       showCodeStep();
+      await api("/api/auth/request-code", { method: "POST", body: JSON.stringify({ email: state.authEmail }) });
+      setAuthError("");
     } else {
       const result = await api("/api/auth/verify-code", {
         method: "POST",
@@ -292,6 +297,22 @@ authForm.addEventListener("submit", async (event) => {
     setAuthError(error.message);
   } finally {
     authSubmit.disabled = false;
+  }
+});
+
+authResend.addEventListener("click", async () => {
+  authResend.disabled = true;
+  setAuthError("");
+  try {
+    await api("/api/auth/request-code", {
+      method: "POST",
+      body: JSON.stringify({ email: state.authEmail })
+    });
+    showToast("Ein neuer Code wurde angefordert. Prüfe auch deinen Spam-Ordner.");
+  } catch (error) {
+    setAuthError(error.message);
+  } finally {
+    authResend.disabled = false;
   }
 });
 

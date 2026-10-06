@@ -202,6 +202,7 @@ body.dark-mode .stop-button:hover { background: #505050; }
 .auth-error { margin-top: 11px; color: #b64f5d; font-size: 10px; line-height: 1.5; }
 .auth-privacy { margin-top: 25px; color: #a19ea8; text-align: center; font-size: 9px; }.auth-privacy > span:first-child { color: #8d76d6; }.privacy-separator { padding: 0 4px; color: #cfccd3; }
 .auth-back { display: block; margin: 11px auto 0; padding: 5px; border: 0; background: transparent; color: #8270c4; font-size: 10px; cursor: pointer; }
+.auth-resend { display: block; margin: 10px auto 0; padding: 5px; border: 0; background: transparent; color: #8270c4; font-size: 10px; cursor: pointer; }.auth-resend:disabled { opacity: .6; cursor: wait; }
 .auth-footer { position: absolute; bottom: 22px; display: flex; align-items: center; gap: 18px; color: #aaa6b2; font-size: 8px; letter-spacing: 1.5px; }.auth-footer span { padding-left: 5px; color: #8a75d3; }
 .icon-button, .menu-toggle { display: none; }
 body.dark-mode { color-scheme: dark; --ink: #ececec; --muted: #a1a1a1; --line: #2f2f2f; --paper: #000; --sidebar: #000; background: #000; color: #ececec; }

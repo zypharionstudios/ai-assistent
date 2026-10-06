@@ -201,12 +201,13 @@
           <div class="code-field hidden" id="codeField"><label class="input-label" for="authCode">DEIN 6-STELLIGER CODE</label><input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
           <div class="auth-error hidden" id="authError"></div>
           <button class="auth-submit" id="authSubmit" type="submit">Code per E-Mail erhalten <span>→</span></button>
+          <button class="auth-resend hidden" id="authResend" type="button">Code erneut anfordern</button>
         </form>
         <div class="auth-privacy"><span>♧</span> 30 Tage angemeldet bleiben <span class="privacy-separator">·</span> Chats sicher gespeichert.</div>
       </div>
       <div class="auth-footer"><span>DEINE IDEEN. DEIN RAUM. <span>✳</span></span><a class="auth-legal-link" href="/impressum.html">Impressum</a></div>
     </div>
     <div id="toast" class="toast" role="status"></div>
-    <script src="/app.js?v=20261006-media-fallback"></script>
+    <script src="/app.js?v=20261006-auth-step"></script>
   </body>
 </html>
