@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const crypto = require("node:crypto");
+const dns = require("node:dns");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -9,6 +10,8 @@ const { DatabaseSync } = require("node:sqlite");
 const express = require("express");
 const nodemailer = require("nodemailer");
 const OpenAI = require("openai");
+
+dns.setDefaultResultOrder("ipv4first");
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
@@ -618,6 +621,23 @@ function emailTransport() {
   });
 }
 
+function emailDeliveryError(error) {
+  const code = error.code || error.cause?.code;
+  if (process.env.RESEND_API_KEY?.trim()) {
+    return "Resend hat den Versand abgelehnt. Prüfe in Render RESEND_FROM: Die Absenderdomain muss bei Resend als Verified angezeigt werden. Details stehen in den Render-Logs.";
+  }
+  if (["ETIMEDOUT", "ESOCKET", "ECONNECTION", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"].includes(code)) {
+    return `Render kann den SMTP-Server nicht erreichen (${code}). IPv4 wird jetzt bevorzugt; falls der Fehler bleibt, ist der SMTP-Port vom Host nicht erreichbar. Nutze dann einen HTTPS-Mailversand oder einen SMTP-Relay-Anbieter mit einem erreichbaren Port wie 2525.`;
+  }
+  if (code === "EAUTH" || error.responseCode === 535) {
+    return "Der Mailanbieter hat die SMTP-Anmeldung abgelehnt. Prüfe SMTP_USER und SMTP_PASS in Render; bei Gmail muss SMTP_PASS ein aktuelles App-Passwort sein.";
+  }
+  if (error.responseCode >= 500) {
+    return "Der Mailanbieter hat den Versand abgelehnt. Prüfe SMTP_FROM: Bei Gmail sollte es dieselbe Adresse wie SMTP_USER sein. Details stehen in den Render-Logs.";
+  }
+  return "Der Mailversand ist fehlgeschlagen. Prüfe die Mailanbieter-Einstellungen; der genaue SMTP-Fehler steht in den Render-Logs.";
+}
+
 async function sendLoginCode(email, code) {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
   if (resendApiKey) {
@@ -649,8 +669,12 @@ async function sendLoginCode(email, code) {
   if (!transport) {
     throw new Error("Email is not configured. Set RESEND_API_KEY and RESEND_FROM, or configure SMTP.");
   }
+  const configuredFrom = process.env.SMTP_FROM?.trim();
+  const from = configuredFrom && !/@example\.(com|net|org)\b/i.test(configuredFrom)
+    ? configuredFrom
+    : process.env.SMTP_USER;
   await transport.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    from,
     to: email,
     subject: "Dein Anmeldecode für AI Studio",
     text: `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`,
@@ -697,9 +721,14 @@ app.post("/api/auth/request-code", async (req, res) => {
   try {
     await sendLoginCode(email, code);
   } catch (error) {
-    console.error("Email delivery failed:", error.message);
+    console.error("Email delivery failed:", {
+      provider: process.env.RESEND_API_KEY?.trim() ? "resend" : "smtp",
+      code: error.code || error.cause?.code || null,
+      responseCode: error.responseCode || null,
+      message: error.message
+    });
     db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
-    return res.status(502).json({ error: "Der Anmeldecode konnte nicht versendet werden. Prüfe in Render die Mailanbieter-Einstellungen (RESEND_API_KEY/RESEND_FROM oder SMTP) und die Logs." });
+    return res.status(502).json({ error: emailDeliveryError(error) });
   }
   return res.json({ ok: true, message: "Wenn der Versand erfolgreich war, kommt dein Code gleich per E-Mail." });
 });
