@@ -96,7 +96,7 @@ Im Repository liegt eine `render.yaml`-Blueprint-Konfiguration:
 
 Die Render-Konfiguration startet einen einzelnen Webdienst mit SQLite-Datei `/data/chat.sqlite`. Lass mindestens eine Instanz laufen und lösche oder ersetze den Datenträger nicht, sonst gehen Konten, Chats, Nutzungseinstellungen und gespeicherte private Schlüssel verloren. Wenn du Render später neu verbindest oder migrierst, müssen `API_KEYS_ENCRYPTION_SECRET` und die Datenbank zusammen erhalten bleiben. Der E-Mail-Code-Login funktioniert erst, wenn SMTP korrekt eingetragen ist.
 
-Für Render Free gibt es keinen persistenten Datenträger. Wenn der Server beim Start `EACCES: permission denied, mkdir '/app/data'` meldet, entferne im Render-Dashboard einen veralteten `DATABASE_PATH`-Wert wie `/app/data/chat.sqlite`. Für einen kostenlosen, nur vorübergehenden Test kannst du `DATABASE_PATH=/tmp/chat.sqlite` setzen; für dauerhafte Daten muss ein beschreibbarer Datenträger unter `/data` gemountet und `DATABASE_PATH=/data/chat.sqlite` gesetzt sein.
+Für Render Free gibt es keinen persistenten Datenträger. Wenn `DATABASE_PATH` auf einen nicht beschreibbaren Pfad wie `/app/data/chat.sqlite` zeigt, startet der Server mit einer gut sichtbaren Warnung ersatzweise mit einer temporären SQLite-Datei im System-Temp-Ordner. Dabei können Daten bei Neustart oder Redeploy verloren gehen. Setze für einen kostenlosen Test `DATABASE_PATH=/tmp/chat.sqlite`; für dauerhafte Daten muss ein beschreibbarer Datenträger unter `/data` gemountet und `DATABASE_PATH=/data/chat.sqlite` gesetzt sein.
 
 ### Mit Docker oder Docker Compose hosten
 

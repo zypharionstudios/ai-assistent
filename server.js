@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
 const { DatabaseSync } = require("node:sqlite");
@@ -12,23 +13,36 @@ const OpenAI = require("openai");
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const sessionDays = Math.max(1, Number(process.env.SESSION_DAYS || 30));
-const databasePath = path.resolve(process.env.DATABASE_PATH || "./data/chat.sqlite");
+let databasePath = path.resolve(process.env.DATABASE_PATH || "./data/chat.sqlite");
 const environmentFilePath = path.join(__dirname, ".env");
 let environmentFileCache = { modifiedAt: -1, size: -1, values: {} };
+function openDatabase(filePath) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  return new DatabaseSync(filePath);
+}
+
+let db;
 try {
-  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  db = openDatabase(databasePath);
 } catch (error) {
-  if (error.code === "EACCES" || error.code === "EROFS") {
+  if (!["EACCES", "EROFS"].includes(error.code)) throw error;
+  const requestedDatabasePath = databasePath;
+  databasePath = path.join(os.tmpdir(), "atelier", "chat.sqlite");
+  try {
+    db = openDatabase(databasePath);
+  } catch (fallbackError) {
     throw new Error(
-      `DATABASE_PATH points to a directory the host cannot write: ${path.dirname(databasePath)}. ` +
-      "Set DATABASE_PATH to a writable mount (for a Render persistent disk mounted at /data, use /data/chat.sqlite). " +
-      "On Render Free only, /tmp/chat.sqlite is writable but temporary and its data can be lost on restart or redeploy.",
-      { cause: error }
+      `Cannot open the configured database at ${requestedDatabasePath} (${error.code}) or the temporary fallback at ${databasePath} (${fallbackError.code || fallbackError.message}). ` +
+      "Configure DATABASE_PATH to a writable directory or mount persistent storage.",
+      { cause: fallbackError }
     );
   }
-  throw error;
+  console.warn(
+    `WARNING: DATABASE_PATH ${requestedDatabasePath} is not writable (${error.code}); ` +
+    `using temporary database ${databasePath}. Data may be lost when the host restarts or redeploys. ` +
+    "For persistent data, mount a writable disk and set DATABASE_PATH to its mount path, for example /data/chat.sqlite."
+  );
 }
-const db = new DatabaseSync(databasePath);
 db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
