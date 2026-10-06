@@ -1,0 +1,65 @@
+services:
+  - type: web
+    name: atelier-ai
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: atelier-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_PATH
+        value: /data/chat.sqlite
+      - key: TRUST_PROXY
+        value: "true"
+      - key: CODE_SECRET
+        generateValue: true
+      - key: API_KEYS_ENCRYPTION_SECRET
+        generateValue: true
+      - key: SESSION_DAYS
+        value: "30"
+      - key: GROQ_API_KEYS
+        sync: false
+      - key: GEMINI_API_KEYS
+        sync: false
+      - key: OPENROUTER_API_KEYS
+        sync: false
+      - key: XKIRO_API_KEYS
+        sync: false
+      - key: XKIRO_MODELS
+        sync: false
+      - key: VIGGLE_API_KEYS
+        sync: false
+      - key: SECRET_API_KEYS_ALLOWED_EMAILS
+        sync: false
+      - key: SECRET_GROQ_API_KEYS
+        sync: false
+      - key: SECRET_GEMINI_API_KEYS
+        sync: false
+      - key: SECRET_OPENROUTER_API_KEYS
+        sync: false
+      - key: SECRET_XKIRO_API_KEYS
+        sync: false
+      - key: SECRET_VIGGLE_API_KEYS
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false

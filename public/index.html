@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f8f8fb">
+    <title>AI Studio — Dein KI-Arbeitsbereich</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css?v=20261006-impressum-settings">
+  </head>
+  <body>
+    <div id="app" class="app-shell hidden">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand-row">
+          <a class="brand" href="/" aria-label="AI Studio Startseite">
+            <span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 14.7 9.3 21.2 12l-6.5 2.7L12 21.2l-2.7-6.5L2.8 12l6.5-2.7L12 2.8Z"/><path d="m19 2 .9 2.1L22 5l-2.1.9L19 8l-.9-2.1L16 5l2.1-.9L19 2Z"/></svg></span>
+            <span>atelier<span class="brand-dot">.</span></span>
+          </a>
+          <button class="icon-button mobile-close" id="closeSidebar" aria-label="Menü schließen">×</button>
+        </div>
+        <button class="new-chat-button" id="newChat"><span class="plus">+</span><span data-i18n="newChat">Neuer Chat</span><span class="shortcut">⌘ K</span></button>
+        <div class="sidebar-label" data-i18n="yourChats">DEINE CHATS</div>
+        <div class="chat-list" id="chatList"></div>
+        <div class="sidebar-spacer"></div>
+        <div class="provider-card">
+          <div class="provider-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 0 0-8.5 8.6 8.2 8.2 0 0 0 1 3.9l-.8 3.3 3.4-.9a8.5 8.5 0 1 0 4.9-14.9Z"/><path d="M8.2 12h7.6M12 8.2v7.6"/></svg></div>
+          <div><strong id="providerCount">0 Anbieter</strong><span data-i18n="workspaceModels">Ein Workspace. Alle Modelle.</span></div>
+          <span class="online-dot"></span>
+        </div>
+        <button class="account-button" id="accountButton">
+          <span class="avatar" id="avatar">A</span><span class="account-details"><strong id="userEmail">Du</strong><span data-i18n="settingsProfile">Einstellungen · Profil</span></span><span class="account-menu">···</span>
+        </button>
+      </aside>
+      <div class="mobile-scrim" id="mobileScrim"></div>
+      <main class="main-area">
+        <header class="topbar">
+          <button class="icon-button menu-toggle" id="menuToggle" aria-label="Menü öffnen"><span></span><span></span></button>
+          <div class="topbar-context"><span class="context-indicator"></span><span id="topbarTitle">Dein kreativer Denkraum</span></div>
+          <button class="usage-badge" id="usageButton" type="button" aria-label="Nutzungslimits anzeigen" title="Nutzungslimits anzeigen">Nutzung …</button>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Dark Mode aktivieren" title="Dark Mode aktivieren">☾</button>
+          <div class="model-controls">
+            <label class="select-wrap provider-select-wrap">
+              <span class="select-caption" data-i18n="provider">ANBIETER</span>
+              <select id="providerSelect" aria-label="KI-Anbieter">
+                <option value="auto">✳ Auto · alle Anbieter</option>
+              </select>
+              <span class="select-chevron">⌄</span>
+            </label>
+            <span class="control-divider"></span>
+            <label class="select-wrap model-select-wrap">
+              <span class="select-caption" data-i18n="model">MODELL</span>
+              <select id="modelSelect" aria-label="KI-Modell"></select>
+              <span class="select-chevron">⌄</span>
+            </label>
+            <button class="refresh-models" id="refreshModels" title="Modelle neu laden" aria-label="Modelle neu laden">↻</button>
+          </div>
+        </header>
+        <section class="conversation-view" id="conversationView">
+          <div class="welcome" id="welcome">
+            <div class="welcome-kicker"><span class="kicker-line"></span><span data-i18n="welcomeKicker">DEIN PERSÖNLICHER KI-ARBEITSRAUM</span></div>
+            <h1 data-i18n="welcomeTitle">Gute Ideen beginnen<br>mit <span>einer Frage.</span></h1>
+            <p data-i18n="welcomeDescription">Ein Raum für klare Gedanken, neue Perspektiven und alles,<br class="desktop-break"> was du als Nächstes erschaffen möchtest.</p>
+            <div class="suggestion-grid">
+              <button class="suggestion-card" data-prompt="Hilf mir, eine gute Idee für mein nächstes Projekt zu entwickeln."><span class="suggestion-icon peach">✳</span><span class="suggestion-copy"><strong data-i18n="ideaTitle">Eine Idee entwickeln</strong><span data-i18n="ideaDescription">Von der ersten Frage zum klaren Konzept</span></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion-card" data-prompt="Schreibe mir einen prägnanten, freundlichen Text für eine E-Mail."><span class="suggestion-icon lavender">↗</span><span class="suggestion-copy"><strong data-i18n="writingTitle">Besser formulieren</strong><span data-i18n="writingDescription">Finde die richtigen Worte für jeden Anlass</span></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion-card" data-prompt="Erkläre mir ein schwieriges Thema Schritt für Schritt und verständlich."><span class="suggestion-icon mint">⌘</span><span class="suggestion-copy"><strong data-i18n="learnTitle">Etwas verstehen</strong><span data-i18n="learnDescription">Komplexes einfach und klar erklärt</span></span><span class="suggestion-arrow">↗</span></button>
+              <button class="suggestion-card" data-prompt="/generate foto Ein ruhiges, hochwertiges Editorial-Bild einer sonnigen Küstenlandschaft"><span class="suggestion-icon sky">◈</span><span class="suggestion-copy"><strong data-i18n="createTitle">Etwas erschaffen</strong><span data-i18n="createDescription">Bild- und Videogenerierung ausprobieren</span></span><span class="suggestion-arrow">↗</span></button>
+            </div>
+          </div>
+          <div class="messages" id="messages" aria-live="polite"></div>
+          <div class="loading-indicator hidden" id="loadingIndicator"><span></span><span></span><span></span><em>Denkt nach</em></div>
+        </section>
+        <div class="composer-area">
+          <div class="composer-wrap">
+            <form id="composerForm" class="composer">
+              <textarea id="messageInput" rows="1" placeholder="Frag, denk laut oder erschaffe etwas ..." aria-label="Nachricht" data-i18n-placeholder="messagePlaceholder"></textarea>
+              <div class="composer-toolbar">
+                <div class="composer-tools">
+                  <button class="tool-button" id="mediaMenuButton" type="button" title="Generieren" aria-label="Generieren"><span class="tool-sparkle">✳</span><span data-i18n="generate">Generieren</span><span class="tiny-chevron">⌄</span></button>
+                  <button class="tool-button deep-think-button" id="deepThinkToggle" type="button" title="Sorgfältigeres Abwägen aktivieren" aria-pressed="false"><span>◉</span><span>Deep Think</span></button>
+                  <button class="tool-button web-search-button" id="webSearchToggle" type="button" title="Websuche aktivieren" aria-pressed="false"><span>⌕</span><span data-i18n="webSearch">Websuche</span></button>
+                  <div class="media-menu hidden" id="mediaMenu">
+                    <button type="button" data-insert="/generate foto "> <span class="menu-emoji">◈</span><span><strong data-i18n="generateImage">Bild erstellen</strong><small data-i18n="generateImageHelp">Mit einem Prompt generieren</small></span></button>
+                    <button type="button" data-insert="/generate vid "> <span class="menu-emoji">▷</span><span><strong data-i18n="generateVideo">Video erstellen</strong><small data-i18n="generateVideoHelp">Wenn dein Anbieter es unterstützt</small></span></button>
+                  </div>
+                  <span class="tool-divider"></span>
+                  <span class="context-hint"><span class="hint-dot"></span><span data-i18n="contextActive">Kontext aktiv</span></span>
+                </div>
+                <div class="composer-actions"><span class="keyboard-hint" data-i18n="sendHint">↵ zum Senden</span><button class="send-button stop-button hidden" id="stopButton" type="button" aria-label="Antwort stoppen" title="Antwort stoppen"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button><button class="send-button" id="sendButton" type="submit" aria-label="Nachricht senden" data-i18n-aria-label="sendMessage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button></div>
+              </div>
+            </form>
+            <div class="composer-footnote" data-i18n="aiDisclaimer">KI kann Fehler machen. Prüfe wichtige Informationen immer nach.</div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div class="settings-overlay hidden" id="renameDialog" aria-hidden="true">
+      <section class="settings-dialog rename-dialog" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+        <header class="settings-header">
+          <div><h2 id="renameTitle" data-i18n="renameTitle">Chat umbenennen</h2></div>
+          <button class="settings-close" id="closeRename" type="button" aria-label="Schließen">×</button>
+        </header>
+        <form id="renameForm">
+          <label class="sr-only" for="renameChatInput" data-i18n="renameInputLabel">Chatname</label>
+          <input id="renameChatInput" maxlength="80" required>
+          <div class="rename-actions">
+            <button class="settings-secondary" id="cancelRename" type="button" data-i18n="cancel">Abbrechen</button>
+            <button class="settings-primary" type="submit" data-i18n="saveRename">Speichern</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div class="settings-overlay hidden" id="settingsDialog" aria-hidden="true">
+      <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <header class="settings-header">
+          <div><div class="settings-eyebrow" data-i18n="settingsEyebrow">PERSÖNLICHER WORKSPACE</div><h2 id="settingsTitle" data-i18n="settingsTitle">Einstellungen</h2><p id="settingsEmail"></p></div>
+          <button class="settings-close" id="closeSettings" type="button" aria-label="Schließen">×</button>
+        </header>
+        <section class="settings-section" id="usageSection">
+          <h3 data-i18n="usageTitle">Deine Nutzung</h3>
+          <p class="settings-help" id="usageSummary">Nutzung wird geladen …</p>
+          <div class="usage-details" id="usageDetails"></div>
+        </section>
+        <section class="settings-section hidden" id="adminUsageSection">
+          <h3>Nutzungsverwaltung · Team-Admin</h3>
+          <p class="settings-help">Änderungen gelten für alle Nicht-Team-Konten. Teammitglieder haben unbegrenzte Nutzung.</p>
+          <label class="admin-toggle"><input id="usageEnabled" type="checkbox"> Nutzungslimits global aktivieren</label>
+          <div class="admin-limit-grid">
+            <label>Reset nach (Stunden)<input id="usageResetHours" type="number" min="1" max="168" required></label>
+            <label>Nachrichten je Zeitraum<input id="usageMessageLimit" type="number" min="0" max="10000" required></label>
+            <label>Bilder je Zeitraum<input id="usageImageLimit" type="number" min="0" max="10000" required></label>
+            <label>Videos je Zeitraum<input id="usageVideoLimit" type="number" min="0" max="10000" required></label>
+          </div>
+          <button class="settings-primary" id="saveUsageSettings" type="button">Limits speichern</button>
+          <h4 class="admin-subtitle">Dauerhafte Zusatzkontingente</h4>
+          <form class="grant-form" id="grantForm">
+            <label class="sr-only" for="grantEmail">E-Mail-Adresse</label>
+            <input id="grantEmail" type="email" placeholder="name@beispiel.de" required>
+            <label class="sr-only" for="grantFeature">Kontingent</label>
+            <select id="grantFeature"><option value="messages">Nachrichten</option><option value="images">Bilder</option><option value="videos">Videos</option></select>
+            <label class="sr-only" for="grantAmount">Anzahl</label>
+            <input id="grantAmount" type="number" min="1" max="10000" value="5" required>
+            <button class="settings-primary" type="submit">Hinzufügen</button>
+          </form>
+          <div class="settings-error hidden" id="adminUsageError" role="alert"></div>
+          <div class="grant-list" id="grantList"></div>
+        </section>
+        <section class="settings-section">
+          <h3 data-i18n="preferencesTitle">Sprache und Antworten</h3>
+          <label for="languageSelect" data-i18n="languageLabel">Sprache der Website und Antworten</label>
+          <select id="languageSelect"><option value="de">Deutsch</option><option value="en">English</option></select>
+          <label for="responseStyleSelect" data-i18n="responseStyleLabel">Wie soll die KI antworten?</label>
+          <select id="responseStyleSelect">
+            <option value="balanced" data-i18n="styleBalanced">Ausgewogen</option>
+            <option value="concise" data-i18n="styleConcise">Kurz und direkt</option>
+            <option value="detailed" data-i18n="styleDetailed">Ausführlich mit Beispielen</option>
+            <option value="friendly" data-i18n="styleFriendly">Freundlich und locker</option>
+            <option value="professional" data-i18n="styleProfessional">Professionell</option>
+          </select>
+          <label for="customInstructions" data-i18n="customInstructionsLabel">Eigene Wünsche (optional)</label>
+          <textarea id="customInstructions" maxlength="500" rows="3" placeholder="Zum Beispiel: Erkläre Fachbegriffe einfach." data-i18n-placeholder="customInstructionsPlaceholder"></textarea>
+          <button class="settings-primary" id="savePreferences" type="button" data-i18n="saveSettings">Einstellungen speichern</button>
+        </section>
+        <section class="settings-section">
+          <h3 data-i18n="apiKeysTitle">Deine privaten API-Schlüssel</h3>
+          <p class="settings-help" data-i18n="apiKeysHelp">Eigene Schlüssel werden verschlüsselt gespeichert, sind nur für dein Konto sichtbar und können jederzeit gelöscht werden.</p>
+          <label for="keyProviderSelect" data-i18n="provider">Anbieter</label>
+          <select id="keyProviderSelect"></select>
+          <div class="shared-key-notice" id="sharedKeyNotice"></div>
+          <form class="add-key-form" id="addKeyForm">
+            <label class="sr-only" for="privateApiKey" data-i18n="apiKeyLabel">API-Schlüssel</label>
+            <input id="privateApiKey" type="password" autocomplete="off" placeholder="API-Schlüssel einfügen" data-i18n-placeholder="apiKeyPlaceholder">
+            <button class="settings-primary" type="submit" data-i18n="addKey">Schlüssel hinzufügen</button>
+          </form>
+          <div class="settings-error hidden" id="settingsError" role="alert"></div>
+          <div class="private-key-list" id="privateKeyList"></div>
+        </section>
+        <footer class="settings-footer">
+          <span class="settings-help" data-i18n="logoutHelp">Deine Chats bleiben beim Abmelden gespeichert.</span>
+          <button class="settings-secondary" id="logoutButton" type="button" data-i18n="logout">Abmelden</button>
+        </footer>
+        <div class="settings-legal"><a href="/impressum.html">Impressum</a></div>
+      </section>
+    </div>
+
+    <div class="auth-screen hidden" id="authScreen">
+      <div class="auth-decoration auth-decoration-one"></div><div class="auth-decoration auth-decoration-two"></div>
+      <div class="auth-card">
+        <a class="brand auth-brand" href="#"><span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 14.7 9.3 21.2 12l-6.5 2.7L12 21.2l-2.7-6.5L2.8 12l6.5-2.7L12 2.8Z"/><path d="m19 2 .9 2.1L22 5l-2.1.9L19 8l-.9-2.1L16 5l2.1-.9L19 2Z"/></svg></span><span>atelier<span class="brand-dot">.</span></span></a>
+        <div class="auth-kicker">EIN RUHIGERER ORT FÜR KI</div>
+        <h1 id="authTitle">Schön, dass<br>du <span>wieder da bist.</span></h1>
+        <p id="authDescription">Melde dich mit deiner E-Mail an. Wir schicken dir einen sicheren Einmalcode.</p>
+        <div class="auth-spam-notice">Wenn du die E-Mail nicht findest, prüfe bitte auch deinen Spam-Ordner.</div>
+        <form id="authForm">
+          <label class="input-label" id="emailLabel" for="authEmail">E-MAIL-ADRESSE</label>
+          <input id="authEmail" type="email" autocomplete="email" placeholder="du@beispiel.de" required>
+          <div class="code-field hidden" id="codeField"><label class="input-label" for="authCode">DEIN 6-STELLIGER CODE</label><input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+          <div class="auth-error hidden" id="authError"></div>
+          <button class="auth-submit" id="authSubmit" type="submit">Code per E-Mail erhalten <span>→</span></button>
+        </form>
+        <div class="auth-privacy"><span>♧</span> 30 Tage angemeldet bleiben <span class="privacy-separator">·</span> Chats sicher gespeichert.</div>
+      </div>
+      <div class="auth-footer"><span>DEINE IDEEN. DEIN RAUM. <span>✳</span></span><a class="auth-legal-link" href="/impressum.html">Impressum</a></div>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/app.js?v=20261006-media-fallback"></script>
+  </body>
+</html>
