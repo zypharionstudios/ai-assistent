@@ -74,7 +74,7 @@ Teammitglieder können in **Einstellungen → Nutzungsverwaltung · Team-Admin**
 
 ## Speicherung und Anmeldung
 
-Die E-Mail-Adresse wird per zeitlich begrenztem Einmalcode verifiziert. Chats und Nachrichten liegen in `data/chat.sqlite`; Sitzungstoken werden serverseitig nur gehasht gespeichert. Codes sind zehn Minuten gültig und pro Adresse/IP begrenzt. SMTP wird über `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` und `SMTP_FROM` konfiguriert.
+Die E-Mail-Adresse wird per zeitlich begrenztem Einmalcode verifiziert. Chats und Nachrichten liegen in `data/chat.sqlite`; Sitzungstoken werden serverseitig nur gehasht gespeichert. Codes sind zehn Minuten gültig und pro Adresse/IP begrenzt. SMTP wird über `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` und `SMTP_FROM` konfiguriert. Alternativ versendet die App Codes über die HTTPS-API von Resend mit `RESEND_API_KEY` und `RESEND_FROM`. Der Code-Eingabeschritt erscheint nur, wenn der Versand vom Mailanbieter bestätigt wurde.
 
 ## Impressum
 
@@ -90,7 +90,7 @@ Im Repository liegt eine `render.yaml`-Blueprint-Konfiguration:
 
 1. Lade das Projekt in ein privates GitHub-Repository hoch und verbinde das Repository in Render über **New → Blueprint**.
 2. Render erkennt `render.yaml` und richtet den Node-Webdienst samt `/healthz`-Prüfung und dauerhaftem Datenträger unter `/data` ein. Für dauerhaften Speicher ist ein kostenpflichtiger Render-Datenträger erforderlich.
-3. Ergänze im Render-Dashboard die abgefragten Provider-Keys, SMTP-Zugangsdaten und – falls benötigt – `SECRET_API_KEYS_ALLOWED_EMAILS` samt Team-Keys. Die Werte bleiben Server-Umgebungsvariablen; trage sie nicht in den Quellcode ein.
+3. Ergänze im Render-Dashboard die abgefragten Provider-Keys, Mailversand-Einstellungen und – falls benötigt – `SECRET_API_KEYS_ALLOWED_EMAILS` samt Team-Keys. Für Render Free empfiehlt sich Resend: Lege bei Resend einen API-Key an, verifiziere die Absenderdomain und setze `RESEND_API_KEY` und `RESEND_FROM` (zum Beispiel `Atelier <login@deine-domain.de>`). Render Free kann SMTP-Verbindungen auf den üblichen Mailports blockieren. Alternativ funktioniert SMTP, wenn dein Anbieter einen von Render erreichbaren Port wie 2525 anbietet. Die Werte bleiben Server-Umgebungsvariablen; trage sie nicht in den Quellcode ein.
 4. Die Werte `CODE_SECRET` und `API_KEYS_ENCRYPTION_SECRET` werden von Render zufällig erstellt. Bewahre `API_KEYS_ENCRYPTION_SECRET` dauerhaft auf: Ein Austausch dieses Wertes verhindert, dass bereits gespeicherte private API-Keys entschlüsselt werden können.
 5. Nach dem Deployment öffnest du die von Render angezeigte URL. Für eine eigene Domain kannst du diese anschließend in den Domaineinstellungen des Dienstes verbinden.
 

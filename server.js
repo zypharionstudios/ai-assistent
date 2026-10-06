@@ -611,7 +611,50 @@ function emailTransport() {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: process.env.SMTP_SECURE === "true",
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000
+  });
+}
+
+async function sendLoginCode(email, code) {
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  if (resendApiKey) {
+    const from = process.env.RESEND_FROM?.trim();
+    if (!from) throw new Error("RESEND_FROM must be set to a verified sender address.");
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: "Dein Anmeldecode für AI Studio",
+        text: `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`,
+        html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`
+      }),
+      signal: AbortSignal.timeout(15000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(`Resend rejected the email (HTTP ${response.status}): ${result.message || result.error || "unknown provider error"}`);
+    }
+    return;
+  }
+
+  const transport = emailTransport();
+  if (!transport) {
+    throw new Error("Email is not configured. Set RESEND_API_KEY and RESEND_FROM, or configure SMTP.");
+  }
+  await transport.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: "Dein Anmeldecode für AI Studio",
+    text: `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`
   });
 }
 
@@ -641,9 +684,8 @@ app.post("/api/auth/request-code", async (req, res) => {
   if (!rateLimit(`email:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
     return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
   }
-  const transport = emailTransport();
-  if (!transport) {
-    return res.status(503).json({ error: "E-Mail-Versand ist noch nicht eingerichtet. Ergänze die SMTP-Einstellungen in deiner .env-Datei." });
+  if (!process.env.RESEND_API_KEY && !emailTransport()) {
+    return res.status(503).json({ error: "E-Mail-Versand ist nicht eingerichtet. Setze RESEND_API_KEY und RESEND_FROM oder konfiguriere SMTP." });
   }
 
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
@@ -653,17 +695,11 @@ app.post("/api/auth/request-code", async (req, res) => {
     ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_at = excluded.sent_at`)
     .run(email, codeDigest(email, code), expiresAt, now());
   try {
-    await transport.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: email,
-      subject: "Dein Anmeldecode für AI Studio",
-      text: `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`,
-      html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`
-    });
+    await sendLoginCode(email, code);
   } catch (error) {
     console.error("Email delivery failed:", error.message);
     db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
-    return res.status(502).json({ error: "Der Anmeldecode konnte nicht versendet werden. Prüfe deine SMTP-Einstellungen." });
+    return res.status(502).json({ error: "Der Anmeldecode konnte nicht versendet werden. Prüfe in Render die Mailanbieter-Einstellungen (RESEND_API_KEY/RESEND_FROM oder SMTP) und die Logs." });
   }
   return res.json({ ok: true, message: "Wenn der Versand erfolgreich war, kommt dein Code gleich per E-Mail." });
 });
