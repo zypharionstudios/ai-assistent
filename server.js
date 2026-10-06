@@ -621,8 +621,96 @@ function emailTransport() {
   });
 }
 
+function gmailApiConfigured() {
+  return Boolean(
+    process.env.GMAIL_OAUTH_CLIENT_ID?.trim() &&
+    process.env.GMAIL_OAUTH_CLIENT_SECRET?.trim() &&
+    process.env.GMAIL_OAUTH_REFRESH_TOKEN?.trim() &&
+    process.env.GMAIL_FROM?.trim()
+  );
+}
+
+function isGmailSmtpHost() {
+  return ["smtp.gmail.com", "smtp.googlemail.com"].includes(process.env.SMTP_HOST?.trim().toLowerCase());
+}
+
+async function sendWithGmailApi(email, code) {
+  const from = process.env.GMAIL_FROM.trim();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(from)) {
+    const error = new Error("GMAIL_FROM must be the Gmail address authorized by the OAuth refresh token.");
+    error.provider = "gmail";
+    error.code = "GMAIL_FROM_INVALID";
+    throw error;
+  }
+  const form = new URLSearchParams({
+    client_id: process.env.GMAIL_OAUTH_CLIENT_ID.trim(),
+    client_secret: process.env.GMAIL_OAUTH_CLIENT_SECRET.trim(),
+    refresh_token: process.env.GMAIL_OAUTH_REFRESH_TOKEN.trim(),
+    grant_type: "refresh_token"
+  });
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form,
+    signal: AbortSignal.timeout(15000)
+  });
+  const tokenResult = await tokenResponse.json().catch(() => ({}));
+  if (!tokenResponse.ok || !tokenResult.access_token) {
+    const error = new Error(`Google OAuth token request failed (HTTP ${tokenResponse.status}): ${tokenResult.error_description || tokenResult.error || "unknown error"}`);
+    error.provider = "gmail";
+    error.code = tokenResult.error || "GOOGLE_OAUTH_FAILED";
+    throw error;
+  }
+
+  const boundary = `atelier-${crypto.randomBytes(18).toString("hex")}`;
+  const text = `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`;
+  const encodedSubject = Buffer.from("Dein Anmeldecode für AI Studio", "utf8").toString("base64");
+  const mimeMessage = [
+    `From: AI Studio <${from}>`,
+    `To: ${email}`,
+    `Subject: =?UTF-8?B?${encodedSubject}?=`,
+    "MIME-Version: 1.0",
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(text, "utf8").toString("base64").match(/.{1,76}/g).join("\r\n"),
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    Buffer.from(html, "utf8").toString("base64").match(/.{1,76}/g).join("\r\n"),
+    `--${boundary}--`
+  ].join("\r\n");
+  const sendResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${tokenResult.access_token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ raw: Buffer.from(mimeMessage, "utf8").toString("base64url") }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const sendResult = await sendResponse.json().catch(() => ({}));
+  if (!sendResponse.ok) {
+    const error = new Error(`Gmail API rejected the email (HTTP ${sendResponse.status}): ${sendResult.error?.message || "unknown error"}`);
+    error.provider = "gmail";
+    error.code = sendResult.error?.status || "GMAIL_API_FAILED";
+    throw error;
+  }
+}
+
 function emailDeliveryError(error) {
   const code = error.code || error.cause?.code;
+  if (error.provider === "gmail") {
+    if (code === "GMAIL_OAUTH_REQUIRED") {
+      return "Gmail-SMTP funktioniert von Render aus nicht. Trage GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN und GMAIL_FROM bei Render ein. Der SMTP-Port 587 wird dafür nicht verwendet.";
+    }
+    return "Der Gmail-HTTPS-Versand ist fehlgeschlagen. Prüfe GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN und GMAIL_FROM bei Render. Für den OAuth-Zugang muss die Gmail-API aktiviert und der Bereich gmail.send freigegeben sein. Details stehen in den Render-Logs.";
+  }
   if (process.env.RESEND_API_KEY?.trim()) {
     return "Resend hat den Versand abgelehnt. Prüfe in Render RESEND_FROM: Die Absenderdomain muss bei Resend als Verified angezeigt werden. Details stehen in den Render-Logs.";
   }
@@ -663,6 +751,30 @@ async function sendLoginCode(email, code) {
       throw new Error(`Resend rejected the email (HTTP ${response.status}): ${result.message || result.error || "unknown provider error"}`);
     }
     return;
+  }
+
+  const gmailOAuthValues = [
+    process.env.GMAIL_OAUTH_CLIENT_ID,
+    process.env.GMAIL_OAUTH_CLIENT_SECRET,
+    process.env.GMAIL_OAUTH_REFRESH_TOKEN,
+    process.env.GMAIL_FROM
+  ];
+  if (gmailOAuthValues.some((value) => value?.trim())) {
+    if (!gmailApiConfigured()) {
+      const error = new Error("Gmail API email configuration is incomplete. Set all GMAIL_OAUTH_* values and GMAIL_FROM.");
+      error.provider = "gmail";
+      error.code = "GMAIL_CONFIG_INCOMPLETE";
+      throw error;
+    }
+    await sendWithGmailApi(email, code);
+    return;
+  }
+
+  if (isGmailSmtpHost()) {
+    const error = new Error("Gmail SMTP cannot be used from Render; configure the Gmail API HTTPS OAuth credentials instead.");
+    error.provider = "gmail";
+    error.code = "GMAIL_OAUTH_REQUIRED";
+    throw error;
   }
 
   const transport = emailTransport();
@@ -708,8 +820,8 @@ app.post("/api/auth/request-code", async (req, res) => {
   if (!rateLimit(`email:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
     return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
   }
-  if (!process.env.RESEND_API_KEY && !emailTransport()) {
-    return res.status(503).json({ error: "E-Mail-Versand ist nicht eingerichtet. Setze RESEND_API_KEY und RESEND_FROM oder konfiguriere SMTP." });
+  if (!process.env.RESEND_API_KEY && !gmailApiConfigured() && !emailTransport()) {
+    return res.status(503).json({ error: "E-Mail-Versand ist nicht eingerichtet. Konfiguriere Gmail-HTTPS (GMAIL_OAUTH_* und GMAIL_FROM), Resend oder SMTP." });
   }
 
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
@@ -722,7 +834,7 @@ app.post("/api/auth/request-code", async (req, res) => {
     await sendLoginCode(email, code);
   } catch (error) {
     console.error("Email delivery failed:", {
-      provider: process.env.RESEND_API_KEY?.trim() ? "resend" : "smtp",
+      provider: error.provider || (process.env.RESEND_API_KEY?.trim() ? "resend" : "smtp"),
       code: error.code || error.cause?.code || null,
       responseCode: error.responseCode || null,
       message: error.message
