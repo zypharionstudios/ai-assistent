@@ -723,6 +723,9 @@ function emailDeliveryError(error) {
     if (code === "invalid_client") {
       return "Google erkennt den OAuth-Client nicht (invalid_client). Prüfe, ob GMAIL_OAUTH_CLIENT_ID und GMAIL_OAUTH_CLIENT_SECRET aus demselben OAuth-Client stammen.";
     }
+    if (code === "unauthorized_client") {
+      return "Google lehnt diesen OAuth-Client für den Refresh Token ab (unauthorized_client). Erzeuge den Refresh Token im OAuth Playground erneut und aktiviere dort „Use your own OAuth credentials“ mit exakt derselben Client-ID und demselben Client-Secret, die bei Render stehen. Verwende einen OAuth-Client vom Typ Webanwendung mit der Weiterleitungs-URI https://developers.google.com/oauthplayground.";
+    }
     if (code === "invalid_scope" || code === "insufficientPermissions" || code === "PERMISSION_DENIED") {
       return "Google verweigert die Gmail-Berechtigung. Aktiviere die Gmail API und autorisiere den Scope https://www.googleapis.com/auth/gmail.send; erstelle danach einen neuen Refresh Token.";
     }
