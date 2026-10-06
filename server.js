@@ -15,7 +15,19 @@ const sessionDays = Math.max(1, Number(process.env.SESSION_DAYS || 30));
 const databasePath = path.resolve(process.env.DATABASE_PATH || "./data/chat.sqlite");
 const environmentFilePath = path.join(__dirname, ".env");
 let environmentFileCache = { modifiedAt: -1, size: -1, values: {} };
-fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+try {
+  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+} catch (error) {
+  if (error.code === "EACCES" || error.code === "EROFS") {
+    throw new Error(
+      `DATABASE_PATH points to a directory the host cannot write: ${path.dirname(databasePath)}. ` +
+      "Set DATABASE_PATH to a writable mount (for a Render persistent disk mounted at /data, use /data/chat.sqlite). " +
+      "On Render Free only, /tmp/chat.sqlite is writable but temporary and its data can be lost on restart or redeploy.",
+      { cause: error }
+    );
+  }
+  throw error;
+}
 const db = new DatabaseSync(databasePath);
 db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
 db.exec(`
