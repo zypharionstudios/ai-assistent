@@ -222,6 +222,28 @@ function isDisposableEmail(email) {
   return labels.some((_, index) => disposableEmailDomains.has(labels.slice(index).join(".")));
 }
 
+function normalizeEmail(value) {
+  const email = value.trim().toLowerCase();
+  const separator = email.lastIndexOf("@");
+  let local = email.slice(0, separator);
+  let domain = email.slice(separator + 1);
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    local = local.split("+")[0].replaceAll(".", "");
+    domain = "gmail.com";
+  }
+  return `${local}@${domain}`;
+}
+
+function usersForEmail(email) {
+  if (email.endsWith("@gmail.com")) {
+    return db.prepare("SELECT id, email, password_hash FROM users WHERE email LIKE '%@gmail.com' OR email LIKE '%@googlemail.com'")
+      .all()
+      .filter((user) => normalizeEmail(user.email) === email);
+  }
+  const user = db.prepare("SELECT id, email, password_hash FROM users WHERE email = ?").get(email);
+  return user ? [user] : [];
+}
+
 function createSession(res, user) {
   const token = crypto.randomBytes(32).toString("base64url");
   const expiresAt = now() + sessionDays * 24 * 60 * 60 * 1000;
@@ -643,68 +665,59 @@ function requireUser(req, res, next) {
   return next();
 }
 
-function mailjetConfigured() {
-  return Boolean(process.env.MAILJET_API_KEY?.trim() && process.env.MAILJET_SECRET_KEY?.trim() && process.env.MAILJET_FROM?.trim());
+function brevoConfigured() {  return Boolean(process.env.BREVO_API_KEY?.trim() && process.env.BREVO_FROM?.trim());
 }
 
 async function sendLoginCode(email, code) {
-  const sender = process.env.MAILJET_FROM.trim();
+  const sender = process.env.BREVO_FROM.trim();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(sender)) {
-    const error = new Error("MAILJET_FROM must be a valid verified sender email address.");
-    error.provider = "mailjet";
-    error.code = "MAILJET_FROM_INVALID";
+    const error = new Error("BREVO_FROM must be a valid verified sender email address.");
+    error.provider = "brevo";
+    error.code = "BREVO_FROM_INVALID";
     throw error;
   }
 
   const text = `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`;
   const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`;
-  const credentials = Buffer.from(`${process.env.MAILJET_API_KEY.trim()}:${process.env.MAILJET_SECRET_KEY.trim()}`).toString("base64");
-  const response = await fetch("https://api.mailjet.com/v3.1/send", {
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
-      Authorization: `Basic ${credentials}`,
+      "api-key": process.env.BREVO_API_KEY.trim(),
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      Messages: [{
-        From: { Email: sender, Name: process.env.MAILJET_FROM_NAME?.trim() || "AI Studio" },
-        To: [{ Email: email }],
-        Subject: "Dein Anmeldecode für AI Studio",
-        TextPart: text,
-        HTMLPart: html
-      }]
+      sender: { email: sender, name: process.env.BREVO_FROM_NAME?.trim() || "AI Studio" },
+      to: [{ email }],
+      subject: "Dein Anmeldecode für AI Studio",
+      textContent: text,
+      htmlContent: html
     }),
     signal: AbortSignal.timeout(15000)
   });
   const result = await response.json().catch(() => ({}));
-  const messageResult = result.Messages?.[0];
-  if (!response.ok || messageResult?.Status !== "success") {
-    const providerError = messageResult?.Errors?.[0];
-    const error = new Error(`Mailjet rejected the email (HTTP ${response.status}): ${providerError?.ErrorMessage || result.ErrorMessage || "unknown provider error"}`);
-    error.provider = "mailjet";
-    error.code = providerError?.ErrorCode || result.ErrorIdentifier || `HTTP_${response.status}`;
+  if (!response.ok) {
+    const error = new Error(`Brevo rejected the email (HTTP ${response.status}): ${result.message || result.code || "unknown provider error"}`);
+    error.provider = "brevo";
+    error.code = result.code || `HTTP_${response.status}`;
     error.providerHttpStatus = response.status;
     throw error;
   }
 }
 
 function emailDeliveryError(error) {
-  if (error.code === "MAILJET_FROM_INVALID") {
-    return "MAILJET_FROM muss eine gültige, bei Mailjet bestätigte Absenderadresse sein.";
+  if (error.code === "BREVO_FROM_INVALID") {
+    return "BREVO_FROM muss eine gültige, bei Brevo bestätigte Absenderadresse sein.";
   }
-  if (error.provider === "mailjet" && /account has been temporarily blocked/i.test(error.message)) {
-    return "Mailjet hat dein Konto vorübergehend gesperrt. Deine API-Schlüssel sind laut Mailjet nicht die Ursache. Kontaktiere den Mailjet-Support und bitte um Entsperrung des Kontos; bis dahin kann die Website keine Login-Codes versenden.";
+  if (error.provider === "brevo" && [401, 403].includes(error.providerHttpStatus)) {
+    return "Brevo hat den API-Key abgelehnt. Prüfe BREVO_API_KEY in den Server-Umgebungsvariablen.";
   }
-  if (error.provider === "mailjet" && error.providerHttpStatus === 401) {
-    return "Mailjet hat die Zugangsdaten abgelehnt. Prüfe MAILJET_API_KEY und MAILJET_SECRET_KEY im Render-Dashboard.";
+  if (error.provider === "brevo" && error.providerHttpStatus === 400) {
+    return "Brevo hat die Nachricht abgelehnt. Prüfe, ob BREVO_FROM bei Brevo als Absender bestätigt ist und dein Konto Transaktionsmails versenden darf.";
   }
-  if (error.provider === "mailjet" && error.providerHttpStatus === 400) {
-    return "Mailjet hat die Nachricht abgelehnt. Prüfe, ob MAILJET_FROM bei Mailjet als Absender bestätigt ist und ob dein Mailjet-Konto senden darf.";
+  if (error.provider === "brevo") {
+    return "Brevo konnte den Anmeldecode nicht versenden. Prüfe die Brevo-Einstellungen und Server-Logs.";
   }
-  if (error.provider === "mailjet") {
-    return "Mailjet konnte den Anmeldecode nicht versenden. Prüfe die Mailjet-Einstellungen und die Render-Logs.";
-  }
-  return "Der E-Mail-Versand ist fehlgeschlagen. Prüfe MAILJET_API_KEY, MAILJET_SECRET_KEY und MAILJET_FROM bei Render.";
+  return "Der E-Mail-Versand ist fehlgeschlagen. Prüfe BREVO_API_KEY und BREVO_FROM bei deinem Hoster.";
 }
 app.get("/api/config", (req, res) => {
   res.json({
@@ -723,42 +736,8 @@ app.get("/api/auth/me", (req, res) => {
   res.json({ user: user ? { email: user.email } : null });
 });
 
-app.post("/api/auth/register", async (req, res) => {
-  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
-  const password = typeof req.body.password === "string" ? req.body.password : "";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
-    return res.status(400).json({ error: "Bitte gib eine gültige E-Mail-Adresse ein." });
-  }
-  if (password.length < 10 || Buffer.byteLength(password, "utf8") > 1024) {
-    return res.status(400).json({ error: "Dein Passwort muss mindestens 10 Zeichen lang sein." });
-  }
-  if (isDisposableEmail(email)) {
-    return res.status(400).json({ error: "Wegwerf-E-Mail-Adressen können kein Konto erstellen." });
-  }
-  const ip = req.ip || "unknown";
-  if (!rateLimit(`password-register:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
-    return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
-  }
-  if (db.prepare("SELECT id FROM users WHERE email = ?").get(email)) {
-    return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
-  }
-
-  const user = { id: randomId(), email };
-  try {
-    db.prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
-      .run(user.id, email, await hashPassword(password), isoNow());
-  } catch (error) {
-    if (error.message.includes("users.email")) {
-      return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
-    }
-    throw error;
-  }
-  createSession(res, user);
-  return res.status(201).json({ user: { email } });
-});
-
 app.post("/api/auth/login", async (req, res) => {
-  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const email = typeof req.body.email === "string" ? normalizeEmail(req.body.email) : "";
   const password = typeof req.body.password === "string" ? req.body.password : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !password || Buffer.byteLength(password, "utf8") > 1024) {
     return res.status(400).json({ error: "Bitte gib deine E-Mail-Adresse und dein Passwort ein." });
@@ -767,7 +746,8 @@ app.post("/api/auth/login", async (req, res) => {
   if (!rateLimit(`password-login:${email}`, 10, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
     return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
   }
-  const user = db.prepare("SELECT id, email, password_hash FROM users WHERE email = ?").get(email);
+  const matchingUsers = usersForEmail(email);
+  const user = matchingUsers.length === 1 ? matchingUsers[0] : null;
   if (!user?.password_hash) {
     const message = user
       ? "Dieses Konto wurde ohne Passwort erstellt. Melde dich bitte mit dem E-Mail-Code an."
@@ -782,23 +762,27 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 app.post("/api/auth/request-code", async (req, res) => {
-  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const email = typeof req.body.email === "string" ? normalizeEmail(req.body.email) : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return res.status(400).json({ error: "Bitte gib eine gültige E-Mail-Adresse ein." });
   }
   if (isDisposableEmail(email)) {
     return res.status(400).json({ error: "Wegwerf-E-Mail-Adressen können kein Konto verwenden." });
   }
-  const existingUser = db.prepare("SELECT password_hash FROM users WHERE email = ?").get(email);
-  if (!existingUser || existingUser.password_hash) {
+  const registering = req.body.registration === true;
+  const existingUsers = usersForEmail(email);
+  if (registering && existingUsers.length) {
+    return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
+  }
+  if (!registering && (existingUsers.length !== 1 || existingUsers[0].password_hash)) {
     return res.status(400).json({ error: "Der E-Mail-Code ist nur für bereits bestehende Konten ohne Passwort verfügbar." });
   }
   const ip = req.ip || "unknown";
   if (!rateLimit(`email:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
     return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
   }
-  if (!mailjetConfigured()) {
-    return res.status(503).json({ error: "Mailjet ist nicht eingerichtet. Setze MAILJET_API_KEY, MAILJET_SECRET_KEY und MAILJET_FROM in den Server-Umgebungsvariablen." });
+  if (!brevoConfigured()) {
+    return res.status(503).json({ error: "Brevo ist nicht eingerichtet. Setze BREVO_API_KEY und BREVO_FROM in den Server-Umgebungsvariablen." });
   }
 
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
@@ -810,8 +794,8 @@ app.post("/api/auth/request-code", async (req, res) => {
   try {
     await sendLoginCode(email, code);
   } catch (error) {
-    console.error("Mailjet delivery failed:", {
-      provider: error.provider || "mailjet",
+    console.error("Brevo delivery failed:", {
+      provider: error.provider || "brevo",
       code: error.code || null,
       responseCode: error.providerHttpStatus || null,
       message: error.message
@@ -822,9 +806,11 @@ app.post("/api/auth/request-code", async (req, res) => {
   return res.json({ ok: true, message: "Der Anmeldecode wurde per E-Mail verschickt." });
 });
 
-app.post("/api/auth/verify-code", (req, res) => {
-  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+app.post("/api/auth/verify-code", async (req, res) => {
+  const email = typeof req.body.email === "string" ? normalizeEmail(req.body.email) : "";
   const code = typeof req.body.code === "string" ? req.body.code.trim() : "";
+  const registering = req.body.registration === true;
+  const password = typeof req.body.password === "string" ? req.body.password : "";
   const record = db.prepare("SELECT * FROM login_codes WHERE email = ?").get(email);
   if (!record || record.expires_at < now() || record.attempts >= 5) {
     db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
@@ -835,8 +821,27 @@ app.post("/api/auth/verify-code", (req, res) => {
     return res.status(400).json({ error: "Der Code stimmt nicht. Bitte überprüfe ihn und versuche es erneut." });
   }
 
-  const user = db.prepare("SELECT id, email, password_hash FROM users WHERE email = ?").get(email);
-  if (!user || user.password_hash) {
+  const matchingUsers = usersForEmail(email);
+  let user = matchingUsers.length === 1 ? matchingUsers[0] : null;
+  if (registering) {
+    if (password.length < 10 || Buffer.byteLength(password, "utf8") > 1024) {
+      return res.status(400).json({ error: "Dein Passwort muss mindestens 10 Zeichen lang sein." });
+    }
+    if (matchingUsers.length) {
+      db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
+      return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
+    }
+    user = { id: randomId(), email };
+    try {
+      db.prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
+        .run(user.id, email, await hashPassword(password), isoNow());
+    } catch (error) {
+      if (error.message.includes("users.email")) {
+        return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
+      }
+      throw error;
+    }
+  } else if (!user || user.password_hash) {
     db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
     return res.status(400).json({ error: "Der E-Mail-Code ist nur für bereits bestehende Konten ohne Passwort verfügbar." });
   }

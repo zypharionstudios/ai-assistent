@@ -298,13 +298,13 @@ authBack.addEventListener("click", () => {
 authLegacyToggle.addEventListener("click", async () => {
   setAuthError("");
   if (!authEmail.reportValidity()) return;
-  showCodeStep();
   authLegacyToggle.disabled = true;
   try {
     await api("/api/auth/request-code", {
       method: "POST",
       body: JSON.stringify({ email: state.authEmail })
     });
+    showCodeStep();
   } catch (error) {
     setAuthError(error.message);
   } finally {
@@ -320,17 +320,29 @@ authForm.addEventListener("submit", async (event) => {
     if (state.codeRequested) {
       const result = await api("/api/auth/verify-code", {
         method: "POST",
-        body: JSON.stringify({ email: state.authEmail, code: authCode.value.trim() })
+        body: JSON.stringify({
+          email: state.authEmail,
+          code: authCode.value.trim(),
+          registration: state.authMode === "register",
+          password: authPassword.value
+        })
       });
       setAuthenticated(result.user);
     } else {
       state.authEmail = authEmail.value.trim().toLowerCase();
-      const endpoint = state.authMode === "register" ? "/api/auth/register" : "/api/auth/login";
-      const result = await api(endpoint, {
-        method: "POST",
-        body: JSON.stringify({ email: state.authEmail, password: authPassword.value })
-      });
-      setAuthenticated(result.user);
+      if (state.authMode === "register") {
+        await api("/api/auth/request-code", {
+          method: "POST",
+          body: JSON.stringify({ email: state.authEmail, registration: true })
+        });
+        showCodeStep();
+      } else {
+        const result = await api("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email: state.authEmail, password: authPassword.value })
+        });
+        setAuthenticated(result.user);
+      }
     }
   } catch (error) {
     setAuthError(error.message);
@@ -345,7 +357,7 @@ authResend.addEventListener("click", async () => {
   try {
     await api("/api/auth/request-code", {
       method: "POST",
-      body: JSON.stringify({ email: state.authEmail })
+      body: JSON.stringify({ email: state.authEmail, registration: state.authMode === "register" })
     });
     showToast("Ein neuer Code wurde angefordert. Prüfe auch deinen Spam-Ordner.");
   } catch (error) {

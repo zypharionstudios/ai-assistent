@@ -1,11 +1,11 @@
 # Atelier — AI Studio
 
-Ein privater, ChatGPT-inspirierter KI-Arbeitsbereich mit passwortloser E-Mail-Code-Anmeldung über Mailjet, gespeicherten Unterhaltungen und mehreren API-Anbietern.
+Ein privater, ChatGPT-inspirierter KI-Arbeitsbereich mit E-Mail-Code-Verifikation über Brevo, passwortgeschützten Konten, gespeicherten Unterhaltungen und mehreren API-Anbietern.
 
 ## Loslegen
 
 1. Installiere Node.js 22.13 oder neuer (die App nutzt Node.js' eingebautes SQLite-Modul).
-2. Trage API-Schlüssel und Mailjet-Zugang in die `.env`-Datei im Projektordner ein. Sie ist lokal und wird von Git ignoriert.
+2. Trage API-Schlüssel und Brevo-Zugang in die `.env`-Datei im Projektordner ein. Sie ist lokal und wird von Git ignoriert.
 3. Installiere Abhängigkeiten und starte die App:
 
    ```powershell
@@ -15,7 +15,7 @@ Ein privater, ChatGPT-inspirierter KI-Arbeitsbereich mit passwortloser E-Mail-Co
 
 4. Öffne `http://localhost:3000`.
 
-Nutzer geben ihre E-Mail-Adresse ein und erhalten per Mailjet einen einmaligen Anmeldecode. Ein Passwort ist nicht nötig. Für den produktiven Betrieb muss die Website ausschließlich über HTTPS erreichbar sein.
+Bei der Registrierung bestätigen Nutzer ihre E-Mail-Adresse mit einem einmaligen Brevo-Code und legen ein Passwort fest. Für den produktiven Betrieb muss die Website ausschließlich über HTTPS erreichbar sein.
 
 ## API-Schlüssel und Anbieter
 
@@ -74,7 +74,7 @@ Teammitglieder können in **Einstellungen → Nutzungsverwaltung · Team-Admin**
 
 ## Speicherung und Anmeldung
 
-Nutzer geben ihre E-Mail-Adresse ein und erhalten einen sechsstelligen Einmalcode über die Mailjet-HTTPS-API. Der Code gilt zehn Minuten; Versand- und Prüfversuche sind begrenzt. Nach erfolgreicher Codeprüfung wird automatisch ein Konto angelegt oder das vorhandene Konto geöffnet. Sitzungstoken werden serverseitig nur gehasht gespeichert. Chats und Nachrichten liegen in `data/chat.sqlite`. Richte in Mailjet einen Absender ein und trage `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` und `MAILJET_FROM` als Server-Umgebungsvariablen ein; `MAILJET_FROM` muss als Absender bei Mailjet bestätigt sein.
+Bei der Registrierung geben Nutzer E-Mail-Adresse und Passwort ein und bestätigen die Adresse mit einem sechsstelligen Einmalcode über die Brevo-HTTPS-API. Der Code gilt zehn Minuten; Versand- und Prüfversuche sind begrenzt. Erst nach erfolgreicher Codeprüfung wird das Konto angelegt. Danach erfolgt die Anmeldung per E-Mail und Passwort. Sitzungstoken werden serverseitig nur gehasht gespeichert. Chats und Nachrichten liegen in `data/chat.sqlite`. Erstelle in Brevo einen API-Key und bestätige eine Absenderadresse. Hinterlege `BREVO_API_KEY`, `BREVO_FROM` und optional `BREVO_FROM_NAME` als Server-Umgebungsvariablen.
 
 ## Impressum
 
@@ -90,7 +90,7 @@ Im Repository liegt eine `render.yaml`-Blueprint-Konfiguration:
 
 1. Lade das Projekt in ein privates GitHub-Repository hoch und verbinde das Repository in Render über **New → Blueprint**.
 2. Render erkennt `render.yaml` und richtet den Node-Webdienst samt `/healthz`-Prüfung und dauerhaftem Datenträger unter `/data` ein. Für dauerhaften Speicher ist ein kostenpflichtiger Render-Datenträger erforderlich.
-3. Ergänze im Render-Dashboard die abgefragten Provider-Keys sowie `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM` und – falls benötigt – `SECRET_API_KEYS_ALLOWED_EMAILS` samt Team-Keys. Hinterlege bei Mailjet eine bestätigte Absenderadresse; Gmail-OAuth und SMTP werden nicht benötigt. Die Schlüssel bleiben Server-Umgebungsvariablen; trage sie nicht in den Quellcode ein.
+3. Ergänze im Render-Dashboard die abgefragten Provider-Keys sowie `BREVO_API_KEY`, `BREVO_FROM` und – falls benötigt – `SECRET_API_KEYS_ALLOWED_EMAILS` samt Team-Keys. Hinterlege bei Brevo eine bestätigte Absenderadresse; Gmail-OAuth und SMTP werden nicht benötigt. Die Schlüssel bleiben Server-Umgebungsvariablen; trage sie nicht in den Quellcode ein.
 4. Die Werte `CODE_SECRET` und `API_KEYS_ENCRYPTION_SECRET` werden von Render zufällig erstellt. Bewahre `API_KEYS_ENCRYPTION_SECRET` dauerhaft auf: Ein Austausch dieses Wertes verhindert, dass bereits gespeicherte private API-Keys entschlüsselt werden können.
 5. Nach dem Deployment öffnest du die von Render angezeigte URL. Für eine eigene Domain kannst du diese anschließend in den Domaineinstellungen des Dienstes verbinden.
 

@@ -51,11 +51,9 @@ services:
         sync: false
       - key: SECRET_VIGGLE_API_KEYS
         sync: false
-      - key: MAILJET_API_KEY
+      - key: BREVO_API_KEY
         sync: false
-      - key: MAILJET_SECRET_KEY
+      - key: BREVO_FROM
         sync: false
-      - key: MAILJET_FROM
-        sync: false
-      - key: MAILJET_FROM_NAME
+      - key: BREVO_FROM_NAME
         value: AI Studio
