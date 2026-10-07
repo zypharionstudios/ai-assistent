@@ -197,11 +197,12 @@ body.dark-mode .stop-button:hover { background: #505050; }
 .input-label { display: block; margin: 0 0 8px; color: #898591; font-size: 8px; font-weight: 700; letter-spacing: 1px; }
 .auth-card input { width: 100%; height: 43px; padding: 0 12px; border: 1px solid #e9e7ee; border-radius: 8px; outline: 0; color: #47434f; background: #fff; font-size: 11px; }
 .auth-card input:focus { border-color: #b7a8e9; box-shadow: 0 0 0 3px #f4f1fb; }.auth-card input::placeholder { color: #c1bec7; }
-.code-field { margin-top: 17px; }.code-field input { letter-spacing: 7px; font-size: 16px; font-weight: 600; }
+.password-field, .code-field { margin-top: 17px; }.code-field input { letter-spacing: 7px; font-size: 16px; font-weight: 600; }
 .auth-submit { width: 100%; height: 43px; margin-top: 18px; padding: 0 14px; display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: 8px; color: #fff; background: #795de5; font-size: 11px; font-weight: 600; cursor: pointer; transition: background .15s; }.auth-submit:hover { background: #684bd8; }.auth-submit:disabled { opacity: .6; cursor: wait; }
 .auth-error { margin-top: 11px; color: #b64f5d; font-size: 10px; line-height: 1.5; }
 .auth-privacy { margin-top: 25px; color: #a19ea8; text-align: center; font-size: 9px; }.auth-privacy > span:first-child { color: #8d76d6; }.privacy-separator { padding: 0 4px; color: #cfccd3; }
 .auth-back { display: block; margin: 11px auto 0; padding: 5px; border: 0; background: transparent; color: #8270c4; font-size: 10px; cursor: pointer; }
+.auth-mode-toggle, .auth-legacy-toggle { display: block; margin: 10px auto 0; padding: 4px; border: 0; background: transparent; color: #8270c4; font-size: 10px; cursor: pointer; }
 .auth-resend { display: block; margin: 10px auto 0; padding: 5px; border: 0; background: transparent; color: #8270c4; font-size: 10px; cursor: pointer; }.auth-resend:disabled { opacity: .6; cursor: wait; }
 .auth-footer { position: absolute; bottom: 22px; display: flex; align-items: center; gap: 18px; color: #aaa6b2; font-size: 8px; letter-spacing: 1.5px; }.auth-footer span { padding-left: 5px; color: #8a75d3; }
 .icon-button, .menu-toggle { display: none; }

@@ -4,6 +4,7 @@ const state = {
   chats: [],
   activeChat: null,
   authEmail: "",
+  authMode: "login",
   codeRequested: false,
   settings: {
     preferences: { language: "de", responseStyle: "balanced", customInstructions: "" },
@@ -26,10 +27,14 @@ const appShell = $("#app");
 const authScreen = $("#authScreen");
 const authForm = $("#authForm");
 const authEmail = $("#authEmail");
+const authPassword = $("#authPassword");
 const authCode = $("#authCode");
 const authError = $("#authError");
 const authSubmit = $("#authSubmit");
 const authResend = $("#authResend");
+const authModeToggle = $("#authModeToggle");
+const authLegacyToggle = $("#authLegacyToggle");
+const authBack = $("#authBack");
 const messageInput = $("#messageInput");
 const providerSelect = $("#providerSelect");
 const modelSelect = $("#modelSelect");
@@ -245,51 +250,85 @@ function setAuthenticated(user) {
   loadWorkspace().catch((error) => showToast(error.message));
 }
 
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const registering = mode === "register";
+  $("#authTitle").innerHTML = registering
+    ? "Dein eigener<br><span>Ideenraum.</span>"
+    : "Schön, dass<br>du <span>wieder da bist.</span>";
+  $("#authDescription").textContent = state.codeRequested
+    ? `Gib den sechsstelligen Code ein, den wir an ${state.authEmail} senden.`
+    : registering
+      ? "Erstelle dein Konto mit einer dauerhaften E-Mail-Adresse."
+      : "Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.";
+  $("#passwordField").classList.toggle("hidden", state.codeRequested);
+  $("#emailLabel").classList.toggle("hidden", state.codeRequested);
+  authEmail.classList.toggle("hidden", state.codeRequested);
+  $("#codeField").classList.toggle("hidden", !state.codeRequested);
+  authPassword.required = !state.codeRequested;
+  authPassword.minLength = registering && !state.codeRequested ? 10 : 0;
+  authPassword.autocomplete = registering ? "new-password" : "current-password";
+  authSubmit.innerHTML = state.codeRequested
+    ? "Sicher anmelden <span>→</span>"
+    : registering ? "Konto erstellen <span>→</span>" : "Anmelden <span>→</span>";
+  authModeToggle.textContent = registering ? "Du hast schon ein Konto? Anmelden" : "Noch kein Konto? Konto erstellen";
+  authModeToggle.classList.toggle("hidden", state.codeRequested);
+  authLegacyToggle.classList.toggle("hidden", registering || state.codeRequested);
+  authBack.classList.toggle("hidden", !state.codeRequested);
+  authResend.classList.toggle("hidden", !state.codeRequested);
+}
+
 function showCodeStep() {
+  state.authEmail = authEmail.value.trim().toLowerCase();
   state.codeRequested = true;
-  $("#authTitle").innerHTML = "Nur noch ein<br><span>kleiner Schritt.</span>";
-  $("#authDescription").textContent = `Gib den sechsstelligen Code ein, den wir an ${state.authEmail} senden.`;
-  $("#emailLabel").classList.add("hidden");
-  authEmail.classList.add("hidden");
-  $("#codeField").classList.remove("hidden");
-  authSubmit.innerHTML = "Sicher anmelden <span>→</span>";
-  authResend.classList.remove("hidden");
-  const backButton = document.createElement("button");
-  backButton.type = "button";
-  backButton.className = "auth-back";
-  backButton.textContent = "Andere E-Mail-Adresse verwenden";
-  backButton.addEventListener("click", () => {
-    state.codeRequested = false;
-    $("#authTitle").innerHTML = "Schön, dass<br>du <span>wieder da bist.</span>";
-    $("#authDescription").textContent = "Melde dich mit deiner E-Mail-Adresse an. Ein neues Konto wird automatisch erstellt.";
-    $("#emailLabel").classList.remove("hidden");
-    authEmail.classList.remove("hidden");
-    $("#codeField").classList.add("hidden");
-    authResend.classList.add("hidden");
-    authCode.value = "";
-    authSubmit.innerHTML = "Code per E-Mail erhalten <span>→</span>";
-    backButton.remove();
-    setAuthError("");
-    authEmail.focus();
-  });
-  $(".auth-privacy").before(backButton);
+  setAuthMode(state.authMode);
   authCode.focus();
 }
+
+setAuthMode("login");
+authModeToggle.addEventListener("click", () => setAuthMode(state.authMode === "login" ? "register" : "login"));
+authBack.addEventListener("click", () => {
+  state.codeRequested = false;
+  authCode.value = "";
+  setAuthMode(state.authMode);
+  setAuthError("");
+  authEmail.focus();
+});
+
+authLegacyToggle.addEventListener("click", async () => {
+  setAuthError("");
+  if (!authEmail.reportValidity()) return;
+  showCodeStep();
+  authLegacyToggle.disabled = true;
+  try {
+    await api("/api/auth/request-code", {
+      method: "POST",
+      body: JSON.stringify({ email: state.authEmail })
+    });
+  } catch (error) {
+    setAuthError(error.message);
+  } finally {
+    authLegacyToggle.disabled = false;
+  }
+});
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setAuthError("");
   authSubmit.disabled = true;
   try {
-    if (!state.codeRequested) {
-      state.authEmail = authEmail.value.trim().toLowerCase();
-      showCodeStep();
-      await api("/api/auth/request-code", { method: "POST", body: JSON.stringify({ email: state.authEmail }) });
-      setAuthError("");
-    } else {
+    if (state.codeRequested) {
       const result = await api("/api/auth/verify-code", {
         method: "POST",
         body: JSON.stringify({ email: state.authEmail, code: authCode.value.trim() })
+      });
+      setAuthenticated(result.user);
+    } else {
+      state.authEmail = authEmail.value.trim().toLowerCase();
+      const endpoint = state.authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+      const result = await api(endpoint, {
+        method: "POST",
+        body: JSON.stringify({ email: state.authEmail, password: authPassword.value })
       });
       setAuthenticated(result.user);
     }

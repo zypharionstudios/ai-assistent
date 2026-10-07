@@ -12,6 +12,7 @@
     "check": "node --check server.js && node --check public/app.js"
   },
   "dependencies": {
+    "disposable-email-domains": "^1.0.62",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "openai": "^5.12.2"

@@ -193,20 +193,24 @@
         <a class="brand auth-brand" href="#"><span class="brand-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 14.7 9.3 21.2 12l-6.5 2.7L12 21.2l-2.7-6.5L2.8 12l6.5-2.7L12 2.8Z"/><path d="m19 2 .9 2.1L22 5l-2.1.9L19 8l-.9-2.1L16 5l2.1-.9L19 2Z"/></svg></span><span>atelier<span class="brand-dot">.</span></span></a>
         <div class="auth-kicker">EIN RUHIGERER ORT FÜR KI</div>
         <h1 id="authTitle">Schön, dass<br>du <span>wieder da bist.</span></h1>
-        <p id="authDescription">Melde dich mit deiner E-Mail-Adresse an. Ein neues Konto wird automatisch erstellt.</p>
+        <p id="authDescription">Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.</p>
         <form id="authForm">
           <label class="input-label" id="emailLabel" for="authEmail">E-MAIL-ADRESSE</label>
           <input id="authEmail" type="email" autocomplete="email" placeholder="du@beispiel.de" required>
+          <div class="password-field" id="passwordField"><label class="input-label" for="authPassword">PASSWORT</label><input id="authPassword" type="password" autocomplete="current-password" minlength="10" maxlength="256" placeholder="Mindestens 10 Zeichen" required></div>
           <div class="code-field hidden" id="codeField"><label class="input-label" for="authCode">DEIN 6-STELLIGER CODE</label><input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
           <div class="auth-error hidden" id="authError"></div>
-          <button class="auth-submit" id="authSubmit" type="submit">Code per E-Mail erhalten <span>→</span></button>
+          <button class="auth-submit" id="authSubmit" type="submit">Anmelden <span>→</span></button>
+          <button class="auth-mode-toggle" id="authModeToggle" type="button">Noch kein Konto? Konto erstellen</button>
+          <button class="auth-legacy-toggle" id="authLegacyToggle" type="button">Mit E-Mail-Code anmelden</button>
+          <button class="auth-back hidden" id="authBack" type="button">Zurück zur Anmeldung</button>
           <button class="auth-resend hidden" id="authResend" type="button">Code erneut anfordern</button>
         </form>
-        <div class="auth-privacy"><span>♧</span> Kein Passwort nötig <span class="privacy-separator">·</span> Chats sicher gespeichert.</div>
+        <div class="auth-privacy">Ein Konto pro E-Mail-Adresse <span class="privacy-separator">·</span> Chats bleiben gespeichert.</div>
       </div>
       <div class="auth-footer"><span>DEINE IDEEN. DEIN RAUM. <span>✳</span></span><a class="auth-legal-link" href="/impressum.html">Impressum</a></div>
     </div>
     <div id="toast" class="toast" role="status"></div>
-    <script src="/app.js?v=20261007-mailjet-code-auth"></script>
+    <script src="/app.js?v=20261007-password-auth"></script>
   </body>
 </html>

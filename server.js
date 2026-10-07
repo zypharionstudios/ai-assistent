@@ -6,9 +6,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
+const { promisify } = require("node:util");
 const { DatabaseSync } = require("node:sqlite");
 const express = require("express");
 const OpenAI = require("openai");
+const disposableEmailDomains = new Set(require("disposable-email-domains"));
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -50,6 +52,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
+    password_hash TEXT,
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS login_codes (
@@ -126,6 +129,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS provider_keys_user_provider ON user_provider_keys(user_id, provider_id);
   CREATE INDEX IF NOT EXISTS usage_grants_email_feature ON usage_grants(email, feature, created_at);
 `);
+if (!db.prepare("PRAGMA table_info(users)").all().some((column) => column.name === "password_hash")) {
+  db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT");
+}
 db.prepare(`INSERT OR IGNORE INTO usage_settings
   (id, enabled, reset_hours, message_limit, image_limit, video_limit, updated_at)
   VALUES (1, 1, 12, 20, 4, 1, ?)`).run(new Date().toISOString());
@@ -193,6 +199,36 @@ const randomId = () => crypto.randomUUID();
 const digest = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const codeDigest = (email, code) => digest(`${email}:${code}:${process.env.CODE_SECRET || "local-development"}`);
 const cookieName = "ai_studio_session";
+const scrypt = promisify(crypto.scrypt);
+
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = await scrypt(password, salt, 64);
+  return `${salt.toString("hex")}:${hash.toString("hex")}`;
+}
+
+async function verifyPassword(password, storedHash) {
+  if (typeof storedHash !== "string") return false;
+  const [saltHex, hashHex] = storedHash.split(":");
+  if (!/^[a-f0-9]{32}$/i.test(saltHex || "") || !/^[a-f0-9]{128}$/i.test(hashHex || "")) return false;
+  const expected = Buffer.from(hashHex, "hex");
+  const actual = await scrypt(password, Buffer.from(saltHex, "hex"), expected.length);
+  return crypto.timingSafeEqual(actual, expected);
+}
+
+function isDisposableEmail(email) {
+  const domain = email.slice(email.lastIndexOf("@") + 1);
+  const labels = domain.split(".");
+  return labels.some((_, index) => disposableEmailDomains.has(labels.slice(index).join(".")));
+}
+
+function createSession(res, user) {
+  const token = crypto.randomBytes(32).toString("base64url");
+  const expiresAt = now() + sessionDays * 24 * 60 * 60 * 1000;
+  db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
+    .run(digest(token), user.id, expiresAt);
+  res.setHeader("Set-Cookie", `${cookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionDays * 86400}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+}
 
 app.disable("x-powered-by");
 if (process.env.TRUST_PROXY === "true") app.set("trust proxy", 1);
@@ -656,6 +692,9 @@ function emailDeliveryError(error) {
   if (error.code === "MAILJET_FROM_INVALID") {
     return "MAILJET_FROM muss eine gültige, bei Mailjet bestätigte Absenderadresse sein.";
   }
+  if (error.provider === "mailjet" && /account has been temporarily blocked/i.test(error.message)) {
+    return "Mailjet hat dein Konto vorübergehend gesperrt. Deine API-Schlüssel sind laut Mailjet nicht die Ursache. Kontaktiere den Mailjet-Support und bitte um Entsperrung des Kontos; bis dahin kann die Website keine Login-Codes versenden.";
+  }
   if (error.provider === "mailjet" && error.providerHttpStatus === 401) {
     return "Mailjet hat die Zugangsdaten abgelehnt. Prüfe MAILJET_API_KEY und MAILJET_SECRET_KEY im Render-Dashboard.";
   }
@@ -684,10 +723,75 @@ app.get("/api/auth/me", (req, res) => {
   res.json({ user: user ? { email: user.email } : null });
 });
 
+app.post("/api/auth/register", async (req, res) => {
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body.password === "string" ? req.body.password : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return res.status(400).json({ error: "Bitte gib eine gültige E-Mail-Adresse ein." });
+  }
+  if (password.length < 10 || Buffer.byteLength(password, "utf8") > 1024) {
+    return res.status(400).json({ error: "Dein Passwort muss mindestens 10 Zeichen lang sein." });
+  }
+  if (isDisposableEmail(email)) {
+    return res.status(400).json({ error: "Wegwerf-E-Mail-Adressen können kein Konto erstellen." });
+  }
+  const ip = req.ip || "unknown";
+  if (!rateLimit(`password-register:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
+  }
+  if (db.prepare("SELECT id FROM users WHERE email = ?").get(email)) {
+    return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
+  }
+
+  const user = { id: randomId(), email };
+  try {
+    db.prepare("INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)")
+      .run(user.id, email, await hashPassword(password), isoNow());
+  } catch (error) {
+    if (error.message.includes("users.email")) {
+      return res.status(409).json({ error: "Diese E-Mail-Adresse ist bereits registriert. Melde dich stattdessen an." });
+    }
+    throw error;
+  }
+  createSession(res, user);
+  return res.status(201).json({ user: { email } });
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body.password === "string" ? req.body.password : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !password || Buffer.byteLength(password, "utf8") > 1024) {
+    return res.status(400).json({ error: "Bitte gib deine E-Mail-Adresse und dein Passwort ein." });
+  }
+  const ip = req.ip || "unknown";
+  if (!rateLimit(`password-login:${email}`, 10, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
+    return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
+  }
+  const user = db.prepare("SELECT id, email, password_hash FROM users WHERE email = ?").get(email);
+  if (!user?.password_hash) {
+    const message = user
+      ? "Dieses Konto wurde ohne Passwort erstellt. Melde dich bitte mit dem E-Mail-Code an."
+      : "E-Mail-Adresse oder Passwort ist falsch.";
+    return res.status(401).json({ error: message });
+  }
+  if (!await verifyPassword(password, user.password_hash)) {
+    return res.status(401).json({ error: "E-Mail-Adresse oder Passwort ist falsch." });
+  }
+  createSession(res, user);
+  return res.json({ user: { email: user.email } });
+});
+
 app.post("/api/auth/request-code", async (req, res) => {
   const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return res.status(400).json({ error: "Bitte gib eine gültige E-Mail-Adresse ein." });
+  }
+  if (isDisposableEmail(email)) {
+    return res.status(400).json({ error: "Wegwerf-E-Mail-Adressen können kein Konto verwenden." });
+  }
+  const existingUser = db.prepare("SELECT password_hash FROM users WHERE email = ?").get(email);
+  if (!existingUser || existingUser.password_hash) {
+    return res.status(400).json({ error: "Der E-Mail-Code ist nur für bereits bestehende Konten ohne Passwort verfügbar." });
   }
   const ip = req.ip || "unknown";
   if (!rateLimit(`email:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
@@ -731,14 +835,13 @@ app.post("/api/auth/verify-code", (req, res) => {
     return res.status(400).json({ error: "Der Code stimmt nicht. Bitte überprüfe ihn und versuche es erneut." });
   }
 
-  const user = db.prepare("SELECT id, email FROM users WHERE email = ?").get(email)
-    || { id: randomId(), email };
-  db.prepare("INSERT OR IGNORE INTO users (id, email, created_at) VALUES (?, ?, ?)").run(user.id, email, isoNow());
+  const user = db.prepare("SELECT id, email, password_hash FROM users WHERE email = ?").get(email);
+  if (!user || user.password_hash) {
+    db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
+    return res.status(400).json({ error: "Der E-Mail-Code ist nur für bereits bestehende Konten ohne Passwort verfügbar." });
+  }
   db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
-  const token = crypto.randomBytes(32).toString("base64url");
-  const expiresAt = now() + sessionDays * 24 * 60 * 60 * 1000;
-  db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)").run(digest(token), user.id, expiresAt);
-  res.setHeader("Set-Cookie", `${cookieName}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionDays * 86400}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`);
+  createSession(res, user);
   return res.json({ user: { email } });
 });
 
