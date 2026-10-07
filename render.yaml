@@ -51,27 +51,11 @@ services:
         sync: false
       - key: SECRET_VIGGLE_API_KEYS
         sync: false
-      - key: SMTP_HOST
+      - key: MAILJET_API_KEY
         sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_SECURE
-        value: "false"
-      - key: SMTP_USER
+      - key: MAILJET_SECRET_KEY
         sync: false
-      - key: SMTP_PASS
+      - key: MAILJET_FROM
         sync: false
-      - key: SMTP_FROM
-        sync: false
-      - key: GMAIL_OAUTH_CLIENT_ID
-        sync: false
-      - key: GMAIL_OAUTH_CLIENT_SECRET
-        sync: false
-      - key: GMAIL_OAUTH_REFRESH_TOKEN
-        sync: false
-      - key: GMAIL_FROM
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: RESEND_FROM
-        sync: false
+      - key: MAILJET_FROM_NAME
+        value: AI Studio

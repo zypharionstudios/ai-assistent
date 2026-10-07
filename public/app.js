@@ -248,7 +248,7 @@ function setAuthenticated(user) {
 function showCodeStep() {
   state.codeRequested = true;
   $("#authTitle").innerHTML = "Nur noch ein<br><span>kleiner Schritt.</span>";
-  $("#authDescription").textContent = `Gib den 6-stelligen Code ein, den wir an ${state.authEmail} senden. Er ist 10 Minuten gültig.`;
+  $("#authDescription").textContent = `Gib den sechsstelligen Code ein, den wir an ${state.authEmail} senden.`;
   $("#emailLabel").classList.add("hidden");
   authEmail.classList.add("hidden");
   $("#codeField").classList.remove("hidden");
@@ -261,7 +261,7 @@ function showCodeStep() {
   backButton.addEventListener("click", () => {
     state.codeRequested = false;
     $("#authTitle").innerHTML = "Schön, dass<br>du <span>wieder da bist.</span>";
-    $("#authDescription").textContent = "Melde dich mit deiner E-Mail an. Wir schicken dir einen sicheren Einmalcode.";
+    $("#authDescription").textContent = "Melde dich mit deiner E-Mail-Adresse an. Ein neues Konto wird automatisch erstellt.";
     $("#emailLabel").classList.remove("hidden");
     authEmail.classList.remove("hidden");
     $("#codeField").classList.add("hidden");

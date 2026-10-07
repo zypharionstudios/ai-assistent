@@ -1,11 +1,11 @@
 # Atelier — AI Studio
 
-Ein privater, ChatGPT-inspirierter KI-Arbeitsbereich mit E-Mail-Code-Anmeldung, gespeicherten Unterhaltungen und mehreren API-Anbietern.
+Ein privater, ChatGPT-inspirierter KI-Arbeitsbereich mit passwortloser E-Mail-Code-Anmeldung über Mailjet, gespeicherten Unterhaltungen und mehreren API-Anbietern.
 
 ## Loslegen
 
 1. Installiere Node.js 22.13 oder neuer (die App nutzt Node.js' eingebautes SQLite-Modul).
-2. Trage API-Schlüssel und SMTP-Zugang in die `.env`-Datei im Projektordner ein. Sie ist lokal und wird von Git ignoriert.
+2. Trage API-Schlüssel und Mailjet-Zugang in die `.env`-Datei im Projektordner ein. Sie ist lokal und wird von Git ignoriert.
 3. Installiere Abhängigkeiten und starte die App:
 
    ```powershell
@@ -15,7 +15,7 @@ Ein privater, ChatGPT-inspirierter KI-Arbeitsbereich mit E-Mail-Code-Anmeldung, 
 
 4. Öffne `http://localhost:3000`.
 
-Ohne funktionierende SMTP-Einstellungen wird kein Anmeldecode ausgegeben oder angezeigt. Für den produktiven Betrieb empfiehlt sich HTTPS, ein echter SMTP-Anbieter sowie ein eigener, zufälliger `CODE_SECRET`-Wert.
+Nutzer geben ihre E-Mail-Adresse ein und erhalten per Mailjet einen einmaligen Anmeldecode. Ein Passwort ist nicht nötig. Für den produktiven Betrieb muss die Website ausschließlich über HTTPS erreichbar sein.
 
 ## API-Schlüssel und Anbieter
 
@@ -55,7 +55,7 @@ Die App fragt die Modellliste eines eingerichteten Anbieters ab. Wenn das nicht 
 Der Schalter **Deep Think** ergänzt bei Textanfragen eine Anweisung für besonders sorgfältiges Prüfen und eine knappe Begründung; er fordert keine verborgenen Gedankengänge an.
 Während Text-, Bild- oder Videogenerierung läuft, ersetzt **Stoppen** die Senden-Schaltfläche. Der Abbruch wird an den Server und, soweit vom Anbieter unterstützt, an die Provider-Anfrage weitergegeben; bereits empfangener Antworttext bleibt im Chat erhalten.
 Wenn **Deep Think** aktiv ist, kann die App zusätzlich bis zu vier deiner anderen Chats als begrenzten Kontext berücksichtigen. Die **Websuche** fragt DuckDuckGo nach aktuellen Treffern, übermittelt diese an das gewählte Modell und zeigt gefundene Quellen unter der Antwort an. Chats lassen sich per Rechtsklick oder langem Druck auf dem Chatnamen umbenennen.
-Das helle/dunkle Design wird im Browser gespeichert. Die verifizierte Anmeldung bleibt standardmäßig 30 Tage erhalten; Chats bleiben in der Datenbank gespeichert.
+Das helle/dunkle Design wird im Browser gespeichert. Die Anmeldung bleibt standardmäßig 30 Tage erhalten; Chats bleiben in der Datenbank gespeichert.
 
 ## Nutzungslimits und Team-Admin
 
@@ -74,7 +74,7 @@ Teammitglieder können in **Einstellungen → Nutzungsverwaltung · Team-Admin**
 
 ## Speicherung und Anmeldung
 
-Die E-Mail-Adresse wird per zeitlich begrenztem Einmalcode verifiziert. Chats und Nachrichten liegen in `data/chat.sqlite`; Sitzungstoken werden serverseitig nur gehasht gespeichert. Codes sind zehn Minuten gültig und pro Adresse/IP begrenzt. SMTP wird über `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` und `SMTP_FROM` konfiguriert. Alternativ versendet die App Codes über die HTTPS-API von Resend (`RESEND_API_KEY`, `RESEND_FROM`) oder über die Gmail API (`GMAIL_OAUTH_CLIENT_ID`, `GMAIL_OAUTH_CLIENT_SECRET`, `GMAIL_OAUTH_REFRESH_TOKEN`, `GMAIL_FROM`). Die Gmail API braucht keinen SMTP-Port und keine eigene Domain; im Google Cloud-Projekt muss die Gmail API aktiviert und OAuth mit dem Bereich `gmail.send` eingerichtet werden. Der Code-Eingabeschritt erscheint nach dem Absenden; Versandfehler werden dort angezeigt.
+Nutzer geben ihre E-Mail-Adresse ein und erhalten einen sechsstelligen Einmalcode über die Mailjet-HTTPS-API. Der Code gilt zehn Minuten; Versand- und Prüfversuche sind begrenzt. Nach erfolgreicher Codeprüfung wird automatisch ein Konto angelegt oder das vorhandene Konto geöffnet. Sitzungstoken werden serverseitig nur gehasht gespeichert. Chats und Nachrichten liegen in `data/chat.sqlite`. Richte in Mailjet einen Absender ein und trage `MAILJET_API_KEY`, `MAILJET_SECRET_KEY` und `MAILJET_FROM` als Server-Umgebungsvariablen ein; `MAILJET_FROM` muss als Absender bei Mailjet bestätigt sein.
 
 ## Impressum
 
@@ -82,7 +82,7 @@ Das Impressum ist unter `/impressum.html` erreichbar. Prüfe vor einer öffentli
 
 ## Produktionshinweise
 
-Die Anwendung kann als dauerhafter Node.js-Webdienst auf einem Node-Hoster oder per Docker betrieben werden. Für produktiven Betrieb brauchst du HTTPS, einen SMTP-Anbieter für die Anmeldung und sichere Umgebungsvariablen für die Schlüssel. API-Schlüssel gehören nicht in Frontend-Dateien oder ins öffentliche Repository.
+Die Anwendung kann als dauerhafter Node.js-Webdienst auf einem Node-Hoster oder per Docker betrieben werden. Für produktiven Betrieb brauchst du HTTPS und sichere Umgebungsvariablen für die Schlüssel. API-Schlüssel gehören nicht in Frontend-Dateien oder ins öffentliche Repository.
 
 ### Auf Render veröffentlichen
 
@@ -90,17 +90,17 @@ Im Repository liegt eine `render.yaml`-Blueprint-Konfiguration:
 
 1. Lade das Projekt in ein privates GitHub-Repository hoch und verbinde das Repository in Render über **New → Blueprint**.
 2. Render erkennt `render.yaml` und richtet den Node-Webdienst samt `/healthz`-Prüfung und dauerhaftem Datenträger unter `/data` ein. Für dauerhaften Speicher ist ein kostenpflichtiger Render-Datenträger erforderlich.
-3. Ergänze im Render-Dashboard die abgefragten Provider-Keys, Mailversand-Einstellungen und – falls benötigt – `SECRET_API_KEYS_ALLOWED_EMAILS` samt Team-Keys. Für Gmail ohne eigene Domain kann die Gmail API über HTTPS verwendet werden: Richte in Google Cloud ein OAuth-Client ein, aktiviere die Gmail API, erteile den Bereich `gmail.send` und setze `GMAIL_OAUTH_CLIENT_ID`, `GMAIL_OAUTH_CLIENT_SECRET`, `GMAIL_OAUTH_REFRESH_TOKEN` sowie `GMAIL_FROM` auf die autorisierte Gmail-Adresse. Verwende dafür nicht `smtp.gmail.com` oder Port 587: Render kann SMTP-Verbindungen blockieren, und die App weist Gmail-SMTP deshalb zurück. IPv4-Präferenz hebt eine Port-Sperre nicht auf. Die Werte bleiben Server-Umgebungsvariablen; trage sie nicht in den Quellcode ein.
+3. Ergänze im Render-Dashboard die abgefragten Provider-Keys sowie `MAILJET_API_KEY`, `MAILJET_SECRET_KEY`, `MAILJET_FROM` und – falls benötigt – `SECRET_API_KEYS_ALLOWED_EMAILS` samt Team-Keys. Hinterlege bei Mailjet eine bestätigte Absenderadresse; Gmail-OAuth und SMTP werden nicht benötigt. Die Schlüssel bleiben Server-Umgebungsvariablen; trage sie nicht in den Quellcode ein.
 4. Die Werte `CODE_SECRET` und `API_KEYS_ENCRYPTION_SECRET` werden von Render zufällig erstellt. Bewahre `API_KEYS_ENCRYPTION_SECRET` dauerhaft auf: Ein Austausch dieses Wertes verhindert, dass bereits gespeicherte private API-Keys entschlüsselt werden können.
 5. Nach dem Deployment öffnest du die von Render angezeigte URL. Für eine eigene Domain kannst du diese anschließend in den Domaineinstellungen des Dienstes verbinden.
 
-Die Render-Konfiguration startet einen einzelnen Webdienst mit SQLite-Datei `/data/chat.sqlite`. Lass mindestens eine Instanz laufen und lösche oder ersetze den Datenträger nicht, sonst gehen Konten, Chats, Nutzungseinstellungen und gespeicherte private Schlüssel verloren. Wenn du Render später neu verbindest oder migrierst, müssen `API_KEYS_ENCRYPTION_SECRET` und die Datenbank zusammen erhalten bleiben. Der E-Mail-Code-Login funktioniert erst, wenn SMTP korrekt eingetragen ist.
+Die Render-Konfiguration startet einen einzelnen Webdienst mit SQLite-Datei `/data/chat.sqlite`. Lass mindestens eine Instanz laufen und lösche oder ersetze den Datenträger nicht, sonst gehen Konten, Chats, Nutzungseinstellungen und gespeicherte private Schlüssel verloren. Wenn du Render später neu verbindest oder migrierst, müssen `API_KEYS_ENCRYPTION_SECRET` und die Datenbank zusammen erhalten bleiben.
 
 Für Render Free gibt es keinen persistenten Datenträger. Wenn `DATABASE_PATH` auf einen nicht beschreibbaren Pfad wie `/app/data/chat.sqlite` zeigt, startet der Server mit einer gut sichtbaren Warnung ersatzweise mit einer temporären SQLite-Datei im System-Temp-Ordner. Dabei können Daten bei Neustart oder Redeploy verloren gehen. Setze für einen kostenlosen Test `DATABASE_PATH=/tmp/chat.sqlite`; für dauerhafte Daten muss ein beschreibbarer Datenträger unter `/data` gemountet und `DATABASE_PATH=/data/chat.sqlite` gesetzt sein.
 
 ### Mit Docker oder Docker Compose hosten
 
-1. Lege eine `.env`-Datei aus `.env.example` an, trage einen zufälligen `CODE_SECRET`, einen zufälligen `API_KEYS_ENCRYPTION_SECRET` mit mindestens 32 Zeichen sowie SMTP und gewünschte Provider-Keys ein.
+1. Lege eine `.env`-Datei aus `.env.example` an, trage einen zufälligen `API_KEYS_ENCRYPTION_SECRET` mit mindestens 32 Zeichen sowie gewünschte Provider-Keys ein.
 2. Starte Docker Compose auf dem Server:
 
    ```sh
@@ -120,8 +120,8 @@ Vercel stellt Frontend und API-Endpunkte bereit; die dauerhafte Express-/SQLite-
 1. Veröffentliche zuerst das Repository mit **New → Blueprint** auf Render und warte, bis der Dienst aus `render.yaml` erreichbar ist. Das Backend benötigt den dort konfigurierten persistenten Datenträger.
 2. Importiere dasselbe Repository in Vercel. Das Projekt enthält bereits `vercel.json`: Vercel veröffentlicht `public/` als Website und baut `api/[...path].js` als Weiterleitung zum Backend. Falls Vercel nach dem Framework fragt, wähle **Other** und ändere das Ausgabeverzeichnis nicht.
 3. Trage in **Vercel → Project → Settings → Environment Variables** `BACKEND_URL` mit der vollständigen Render-Service-URL ein, z. B. `https://atelier-ai.onrender.com`. Nur den Ursprung eintragen, ohne `/api`, Pfad oder abschließende Route. Danach neu deployen.
-4. API-Schlüssel, `SMTP_*`, `CODE_SECRET`, `API_KEYS_ENCRYPTION_SECRET`, `DATABASE_PATH`, Team-Allowlist und Team-Keys bleiben in **Render → Environment**. Die Vercel-Seite bekommt keine Provider-Schlüssel.
-5. Öffne die Vercel-Domain. Teste Anmeldung, Chat-Speicherung und API-Modellabruf. Stelle sicher, dass SMTP in Render eingerichtet ist, bevor du die Anmeldung verwendest.
+4. API-Schlüssel, `API_KEYS_ENCRYPTION_SECRET`, `DATABASE_PATH`, Team-Allowlist und Team-Keys bleiben in **Render → Environment**. Die Vercel-Seite bekommt keine Provider-Schlüssel.
+5. Öffne die Vercel-Domain. Teste Registrierung, Anmeldung, Chat-Speicherung und API-Modellabruf.
 
 Der Render-Datenträger muss dauerhaft aktiv bleiben; ohne ihn gehen Datenbank und gespeicherte Chats verloren. Sichere Datenbank und `API_KEYS_ENCRYPTION_SECRET` gemeinsam. Deploye Vercel und Render als zwei Dienste aus demselben Repository: Vercel hostet die Oberfläche und proxyt API-Anfragen, Render führt den zustandsbehafteten Server aus. Das Vercel-Projekt allein ersetzt das Backend und dessen dauerhaften Datenträger nicht.
 

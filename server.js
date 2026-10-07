@@ -8,7 +8,6 @@ const path = require("node:path");
 const { setTimeout: delay } = require("node:timers/promises");
 const { DatabaseSync } = require("node:sqlite");
 const express = require("express");
-const nodemailer = require("nodemailer");
 const OpenAI = require("openai");
 
 dns.setDefaultResultOrder("ipv4first");
@@ -608,218 +607,66 @@ function requireUser(req, res, next) {
   return next();
 }
 
-function emailTransport() {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === "true",
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 20000
-  });
+function mailjetConfigured() {
+  return Boolean(process.env.MAILJET_API_KEY?.trim() && process.env.MAILJET_SECRET_KEY?.trim() && process.env.MAILJET_FROM?.trim());
 }
 
-function gmailApiConfigured() {
-  return Boolean(
-    process.env.GMAIL_OAUTH_CLIENT_ID?.trim() &&
-    process.env.GMAIL_OAUTH_CLIENT_SECRET?.trim() &&
-    process.env.GMAIL_OAUTH_REFRESH_TOKEN?.trim() &&
-    process.env.GMAIL_FROM?.trim()
-  );
-}
-
-function isGmailSmtpHost() {
-  return ["smtp.gmail.com", "smtp.googlemail.com"].includes(process.env.SMTP_HOST?.trim().toLowerCase());
-}
-
-async function sendWithGmailApi(email, code) {
-  const from = process.env.GMAIL_FROM.trim();
-  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(from)) {
-    const error = new Error("GMAIL_FROM must be the Gmail address authorized by the OAuth refresh token.");
-    error.provider = "gmail";
-    error.code = "GMAIL_FROM_INVALID";
-    throw error;
-  }
-  const form = new URLSearchParams({
-    client_id: process.env.GMAIL_OAUTH_CLIENT_ID.trim(),
-    client_secret: process.env.GMAIL_OAUTH_CLIENT_SECRET.trim(),
-    refresh_token: process.env.GMAIL_OAUTH_REFRESH_TOKEN.trim(),
-    grant_type: "refresh_token"
-  });
-  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form,
-    signal: AbortSignal.timeout(15000)
-  });
-  const tokenResult = await tokenResponse.json().catch(() => ({}));
-  if (!tokenResponse.ok || !tokenResult.access_token) {
-    const error = new Error(`Google OAuth token request failed (HTTP ${tokenResponse.status}): ${tokenResult.error_description || tokenResult.error || "unknown error"}`);
-    error.provider = "gmail";
-    error.code = tokenResult.error || "GOOGLE_OAUTH_FAILED";
-    error.providerHttpStatus = tokenResponse.status;
+async function sendLoginCode(email, code) {
+  const sender = process.env.MAILJET_FROM.trim();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(sender)) {
+    const error = new Error("MAILJET_FROM must be a valid verified sender email address.");
+    error.provider = "mailjet";
+    error.code = "MAILJET_FROM_INVALID";
     throw error;
   }
 
-  const boundary = `atelier-${crypto.randomBytes(18).toString("hex")}`;
   const text = `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`;
   const html = `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`;
-  const encodedSubject = Buffer.from("Dein Anmeldecode für AI Studio", "utf8").toString("base64");
-  const mimeMessage = [
-    `From: AI Studio <${from}>`,
-    `To: ${email}`,
-    `Subject: =?UTF-8?B?${encodedSubject}?=`,
-    "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    Buffer.from(text, "utf8").toString("base64").match(/.{1,76}/g).join("\r\n"),
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    Buffer.from(html, "utf8").toString("base64").match(/.{1,76}/g).join("\r\n"),
-    `--${boundary}--`
-  ].join("\r\n");
-  const sendResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+  const credentials = Buffer.from(`${process.env.MAILJET_API_KEY.trim()}:${process.env.MAILJET_SECRET_KEY.trim()}`).toString("base64");
+  const response = await fetch("https://api.mailjet.com/v3.1/send", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${tokenResult.access_token}`,
+      Authorization: `Basic ${credentials}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ raw: Buffer.from(mimeMessage, "utf8").toString("base64url") }),
+    body: JSON.stringify({
+      Messages: [{
+        From: { Email: sender, Name: process.env.MAILJET_FROM_NAME?.trim() || "AI Studio" },
+        To: [{ Email: email }],
+        Subject: "Dein Anmeldecode für AI Studio",
+        TextPart: text,
+        HTMLPart: html
+      }]
+    }),
     signal: AbortSignal.timeout(15000)
   });
-  const sendResult = await sendResponse.json().catch(() => ({}));
-  if (!sendResponse.ok) {
-    const error = new Error(`Gmail API rejected the email (HTTP ${sendResponse.status}): ${sendResult.error?.message || "unknown error"}`);
-    error.provider = "gmail";
-    error.code = sendResult.error?.status || "GMAIL_API_FAILED";
-    error.providerHttpStatus = sendResponse.status;
+  const result = await response.json().catch(() => ({}));
+  const messageResult = result.Messages?.[0];
+  if (!response.ok || messageResult?.Status !== "success") {
+    const providerError = messageResult?.Errors?.[0];
+    const error = new Error(`Mailjet rejected the email (HTTP ${response.status}): ${providerError?.ErrorMessage || result.ErrorMessage || "unknown provider error"}`);
+    error.provider = "mailjet";
+    error.code = providerError?.ErrorCode || result.ErrorIdentifier || `HTTP_${response.status}`;
+    error.providerHttpStatus = response.status;
     throw error;
   }
 }
 
 function emailDeliveryError(error) {
-  const code = error.code || error.cause?.code;
-  if (error.provider === "gmail") {
-    if (code === "GMAIL_OAUTH_REQUIRED") {
-      return "Gmail-SMTP funktioniert von Render aus nicht. Trage GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN und GMAIL_FROM bei Render ein. Der SMTP-Port 587 wird dafür nicht verwendet.";
-    }
-    if (code === "GMAIL_CONFIG_INCOMPLETE") {
-      return "Mindestens einer der vier Gmail-Werte fehlt bei Render: GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN oder GMAIL_FROM. Prüfe sie beim richtigen Render-Web-Service.";
-    }
-    if (code === "GMAIL_FROM_INVALID") {
-      return "GMAIL_FROM ist keine gültige E-Mail-Adresse. Trage die Gmail-Adresse ein, mit der du den OAuth-Zugang autorisiert hast.";
-    }
-    if (code === "invalid_grant") {
-      return "Google hat den Refresh Token abgelehnt (invalid_grant). Er kann abgelaufen, widerrufen oder für ein anderes OAuth-Projekt erstellt worden sein. Erzeuge im OAuth Playground einen neuen Token mit derselben Client-ID und demselben Client-Secret.";
-    }
-    if (code === "invalid_client") {
-      return "Google erkennt den OAuth-Client nicht (invalid_client). Prüfe, ob GMAIL_OAUTH_CLIENT_ID und GMAIL_OAUTH_CLIENT_SECRET aus demselben OAuth-Client stammen.";
-    }
-    if (code === "unauthorized_client") {
-      return "Google lehnt diesen OAuth-Client für den Refresh Token ab (unauthorized_client). Erzeuge den Refresh Token im OAuth Playground erneut und aktiviere dort „Use your own OAuth credentials“ mit exakt derselben Client-ID und demselben Client-Secret, die bei Render stehen. Verwende einen OAuth-Client vom Typ Webanwendung mit der Weiterleitungs-URI https://developers.google.com/oauthplayground.";
-    }
-    if (code === "invalid_scope" || code === "insufficientPermissions" || code === "PERMISSION_DENIED") {
-      return "Google verweigert die Gmail-Berechtigung. Aktiviere die Gmail API und autorisiere den Scope https://www.googleapis.com/auth/gmail.send; erstelle danach einen neuen Refresh Token.";
-    }
-    if (code === "accessNotConfigured" || code === "SERVICE_DISABLED") {
-      return "Die Gmail API ist für das Google-Cloud-Projekt dieses OAuth-Clients nicht aktiviert. Aktiviere sie im selben Projekt wie die Client-ID und versuche es erneut.";
-    }
-    if (code === "GMAIL_API_FAILED" || code === "UNAUTHENTICATED") {
-      return "Google hat den Gmail-Zugriff abgelehnt. Prüfe, dass GMAIL_FROM das autorisierte Konto ist und der Refresh Token für gmail.send erstellt wurde.";
-    }
-    return "Der Gmail-HTTPS-Versand ist fehlgeschlagen. Prüfe GMAIL_OAUTH_CLIENT_ID, GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN und GMAIL_FROM bei Render. Für den OAuth-Zugang muss die Gmail-API aktiviert und der Bereich gmail.send freigegeben sein. Details stehen in den Render-Logs.";
+  if (error.code === "MAILJET_FROM_INVALID") {
+    return "MAILJET_FROM muss eine gültige, bei Mailjet bestätigte Absenderadresse sein.";
   }
-  if (process.env.RESEND_API_KEY?.trim()) {
-    return "Resend hat den Versand abgelehnt. Prüfe in Render RESEND_FROM: Die Absenderdomain muss bei Resend als Verified angezeigt werden. Details stehen in den Render-Logs.";
+  if (error.provider === "mailjet" && error.providerHttpStatus === 401) {
+    return "Mailjet hat die Zugangsdaten abgelehnt. Prüfe MAILJET_API_KEY und MAILJET_SECRET_KEY im Render-Dashboard.";
   }
-  if (["ETIMEDOUT", "ESOCKET", "ECONNECTION", "ECONNREFUSED", "EHOSTUNREACH", "ENETUNREACH"].includes(code)) {
-    return `Render kann den SMTP-Server nicht erreichen (${code}). IPv4 wird jetzt bevorzugt; falls der Fehler bleibt, ist der SMTP-Port vom Host nicht erreichbar. Nutze dann einen HTTPS-Mailversand oder einen SMTP-Relay-Anbieter mit einem erreichbaren Port wie 2525.`;
+  if (error.provider === "mailjet" && error.providerHttpStatus === 400) {
+    return "Mailjet hat die Nachricht abgelehnt. Prüfe, ob MAILJET_FROM bei Mailjet als Absender bestätigt ist und ob dein Mailjet-Konto senden darf.";
   }
-  if (code === "EAUTH" || error.responseCode === 535) {
-    return "Der Mailanbieter hat die SMTP-Anmeldung abgelehnt. Prüfe SMTP_USER und SMTP_PASS in Render; bei Gmail muss SMTP_PASS ein aktuelles App-Passwort sein.";
+  if (error.provider === "mailjet") {
+    return "Mailjet konnte den Anmeldecode nicht versenden. Prüfe die Mailjet-Einstellungen und die Render-Logs.";
   }
-  if (error.responseCode >= 500) {
-    return "Der Mailanbieter hat den Versand abgelehnt. Prüfe SMTP_FROM: Bei Gmail sollte es dieselbe Adresse wie SMTP_USER sein. Details stehen in den Render-Logs.";
-  }
-  return "Der Mailversand ist fehlgeschlagen. Prüfe die Mailanbieter-Einstellungen; der genaue SMTP-Fehler steht in den Render-Logs.";
+  return "Der E-Mail-Versand ist fehlgeschlagen. Prüfe MAILJET_API_KEY, MAILJET_SECRET_KEY und MAILJET_FROM bei Render.";
 }
-
-async function sendLoginCode(email, code) {
-  const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  if (resendApiKey) {
-    const from = process.env.RESEND_FROM?.trim();
-    if (!from) throw new Error("RESEND_FROM must be set to a verified sender address.");
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        from,
-        to: [email],
-        subject: "Dein Anmeldecode für AI Studio",
-        text: `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`,
-        html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(`Resend rejected the email (HTTP ${response.status}): ${result.message || result.error || "unknown provider error"}`);
-    }
-    return;
-  }
-
-  const gmailOAuthValues = [
-    process.env.GMAIL_OAUTH_CLIENT_ID,
-    process.env.GMAIL_OAUTH_CLIENT_SECRET,
-    process.env.GMAIL_OAUTH_REFRESH_TOKEN,
-    process.env.GMAIL_FROM
-  ];
-  if (gmailOAuthValues.some((value) => value?.trim())) {
-    if (!gmailApiConfigured()) {
-      const error = new Error("Gmail API email configuration is incomplete. Set all GMAIL_OAUTH_* values and GMAIL_FROM.");
-      error.provider = "gmail";
-      error.code = "GMAIL_CONFIG_INCOMPLETE";
-      throw error;
-    }
-    await sendWithGmailApi(email, code);
-    return;
-  }
-
-  if (isGmailSmtpHost()) {
-    const error = new Error("Gmail SMTP cannot be used from Render; configure the Gmail API HTTPS OAuth credentials instead.");
-    error.provider = "gmail";
-    error.code = "GMAIL_OAUTH_REQUIRED";
-    throw error;
-  }
-
-  const transport = emailTransport();
-  if (!transport) {
-    throw new Error("Email is not configured. Set RESEND_API_KEY and RESEND_FROM, or configure SMTP.");
-  }
-  const configuredFrom = process.env.SMTP_FROM?.trim();
-  const from = configuredFrom && !/@example\.(com|net|org)\b/i.test(configuredFrom)
-    ? configuredFrom
-    : process.env.SMTP_USER;
-  await transport.sendMail({
-    from,
-    to: email,
-    subject: "Dein Anmeldecode für AI Studio",
-    text: `Dein Anmeldecode lautet ${code}. Er ist 10 Minuten gültig. Wenn du dich nicht angemeldet hast, kannst du diese E-Mail ignorieren.`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:32px auto;color:#172033"><p style="color:#7157e8;font-weight:700">AI STUDIO</p><h1>Dein Anmeldecode</h1><p>Gib diesen Code ein, um dich anzumelden:</p><p style="font-size:32px;letter-spacing:8px;font-weight:700">${code}</p><p>Der Code ist 10 Minuten gültig.</p></div>`
-  });
-}
-
 app.get("/api/config", (req, res) => {
   res.json({
     providers: Object.entries(providers).map(([id, provider]) => ({
@@ -846,8 +693,8 @@ app.post("/api/auth/request-code", async (req, res) => {
   if (!rateLimit(`email:${email}`, 3, 15 * 60 * 1000) || !rateLimit(`ip:${ip}`, 10, 15 * 60 * 1000)) {
     return res.status(429).json({ error: "Zu viele Versuche. Bitte warte kurz und versuche es erneut." });
   }
-  if (!process.env.RESEND_API_KEY && !gmailApiConfigured() && !emailTransport()) {
-    return res.status(503).json({ error: "E-Mail-Versand ist nicht eingerichtet. Konfiguriere Gmail-HTTPS (GMAIL_OAUTH_* und GMAIL_FROM), Resend oder SMTP." });
+  if (!mailjetConfigured()) {
+    return res.status(503).json({ error: "Mailjet ist nicht eingerichtet. Setze MAILJET_API_KEY, MAILJET_SECRET_KEY und MAILJET_FROM in den Server-Umgebungsvariablen." });
   }
 
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
@@ -859,16 +706,16 @@ app.post("/api/auth/request-code", async (req, res) => {
   try {
     await sendLoginCode(email, code);
   } catch (error) {
-    console.error("Email delivery failed:", {
-      provider: error.provider || (process.env.RESEND_API_KEY?.trim() ? "resend" : "smtp"),
-      code: error.code || error.cause?.code || null,
-      responseCode: error.responseCode || null,
+    console.error("Mailjet delivery failed:", {
+      provider: error.provider || "mailjet",
+      code: error.code || null,
+      responseCode: error.providerHttpStatus || null,
       message: error.message
     });
     db.prepare("DELETE FROM login_codes WHERE email = ?").run(email);
     return res.status(502).json({ error: emailDeliveryError(error) });
   }
-  return res.json({ ok: true, message: "Wenn der Versand erfolgreich war, kommt dein Code gleich per E-Mail." });
+  return res.json({ ok: true, message: "Der Anmeldecode wurde per E-Mail verschickt." });
 });
 
 app.post("/api/auth/verify-code", (req, res) => {
