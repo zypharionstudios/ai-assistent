@@ -665,7 +665,8 @@ function requireUser(req, res, next) {
   return next();
 }
 
-function brevoConfigured() {  return Boolean(process.env.BREVO_API_KEY?.trim() && process.env.BREVO_FROM?.trim());
+function brevoConfigured() {
+  return Boolean(process.env.BREVO_API_KEY?.trim() && process.env.BREVO_FROM?.trim());
 }
 
 async function sendLoginCode(email, code) {
@@ -707,6 +708,12 @@ async function sendLoginCode(email, code) {
 function emailDeliveryError(error) {
   if (error.code === "BREVO_FROM_INVALID") {
     return "BREVO_FROM muss eine gültige, bei Brevo bestätigte Absenderadresse sein.";
+  }
+  if (error.provider === "brevo" && /unrecognised IP address|unrecognized IP address/i.test(error.message)) {
+    const ip = error.message.match(/IP address\s+(\d{1,3}(?:\.\d{1,3}){3})/i)?.[1];
+    return ip
+      ? `Brevo blockiert den Versand: Die Server-IP ${ip} ist nicht freigegeben. Füge die ausgehende Render-IP in Brevo unter Security → Authorized IPs hinzu.`
+      : "Brevo blockiert den Versand wegen einer nicht freigegebenen Server-IP. Füge die ausgehende Render-IP in Brevo unter Security → Authorized IPs hinzu.";
   }
   if (error.provider === "brevo" && [401, 403].includes(error.providerHttpStatus)) {
     return "Brevo hat den API-Key abgelehnt. Prüfe BREVO_API_KEY in den Server-Umgebungsvariablen.";
