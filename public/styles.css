@@ -225,6 +225,10 @@ body.dark-mode .auth-card input,
 body.dark-mode .toast,
 body.dark-mode .theme-toggle,
 body.dark-mode .assistant-answer-frame { border-color: #343434; background: #212121; color: #e6e6e6; }
+body.dark-mode .assistant-answer-frame { border-color: #2f2f2f; background: #111; }
+body.dark-mode .assistant-answer-frame .message-content { background: #111; color: #f0f0f0; }
+body.dark-mode .message-content { color: #f0f0f0; }
+body.dark-mode .message-meta { color: #b8b3c4; }
 body.dark-mode .answer-toolbar { border-color: #343434; background: #292929; color: #aaa; }
 body.dark-mode .copy-answer-button { border-color: #414141; background: #242424; color: #c2c2c2; }
 body.dark-mode .reasoning-summary { border-color: #444; background: #242424; color: #aaa; }
@@ -279,8 +283,8 @@ body.dark-mode .grant-form select { border-color: #343434; background: #242424; 
 body.dark-mode .usage-detail-row strong { color: #e1e1e1; }
 body.dark-mode .settings-section { border-color: #343434; }
 body.dark-mode .settings-footer { border-color: #343434; }
-body.dark-mode .assistant-answer-frame { border-color: transparent; background: transparent; }
-body.dark-mode .assistant-answer-frame .message-content { background: transparent; }
+body.dark-mode .assistant-answer-frame { border-color: #2f2f2f; background: #111; }
+body.dark-mode .assistant-answer-frame .message-content { background: #111; }
 body.dark-mode .answer-toolbar { min-height: 28px; border: 0; background: transparent; }
 body.dark-mode .copy-answer-button { border-color: #3a3a3a; background: #1d1d1d; color: #c6c6c6; }
 body.dark-mode .reasoning-summary { border-color: #3f3f3f; background: #151515; color: #aaa; }
@@ -290,11 +294,12 @@ body.dark-mode .model-controls { background: #111; }
 body.dark-mode .usage-badge,
 body.dark-mode .theme-toggle { background: #111; }
 body.dark-mode .suggestion-card { background: #101010; }
-body.dark-mode .composer { border-color: #333; background: #212121; box-shadow: 0 8px 32px #0008; }
+body.dark-mode .composer { border-color: #333; background: #151515; box-shadow: 0 8px 32px #0008; }
+body.dark-mode .composer textarea { background: transparent; color: #f3f3f3; }
 body.dark-mode .tool-button:hover,
 body.dark-mode .theme-toggle:hover,
 body.dark-mode .usage-badge:hover { border-color: #505050; background: #303030; }
-body.dark-mode .user .message-content { background: #212121; }
+body.dark-mode .user .message-content { background: #2a2a2a; border-color: #3a3a3a; color: #f0f0f0; }
 body.dark-mode .messages,
 body.dark-mode .loading-indicator { color: #ececec; }
 body.dark-mode .mobile-scrim { background: #000b; }
@@ -366,13 +371,19 @@ body.dark-mode .web-sources-title { color: #c2bfcb; }
   .topbar { justify-content: space-between; gap: 7px; padding: 0 10px; }
   .welcome { width: calc(100% - 36px); padding: 42px 0 30px; }.welcome h1 { font-size: 38px; }.welcome > p { font-size: 11px; }.desktop-break { display: none; }
   .suggestion-grid { grid-template-columns: 1fr; gap: 8px; margin-top: 24px; }.suggestion-card { min-height: 60px; }
-  .conversation-view { justify-content: flex-start; }.messages { width: calc(100% - 30px); padding-top: 22px; }.loading-indicator { width: calc(100% - 30px); }
+  .conversation-view { justify-content: flex-start; background: #f8f7fa; }.messages { width: calc(100% - 30px); padding-top: 22px; }.loading-indicator { width: calc(100% - 30px); }
+  .message-row { gap: 8px; }
+  .message-body { max-width: 100%; }
   .composer-area { padding: 7px 11px 12px; }.composer-footnote { font-size: 7px; }.keyboard-hint, .context-hint { display: none; }
   .auth-card { padding: 32px 25px 25px; }.auth-brand { margin-bottom: 31px; }
   .settings-overlay { align-items: end; padding: 0; }
   .settings-dialog { width: 100%; max-height: 94vh; padding: 20px 17px calc(18px + env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; }
   .add-key-form { grid-template-columns: 1fr; }
   .grant-form { grid-template-columns: 1fr 1fr; }
+  body.dark-mode .main-area,
+  body.dark-mode .conversation-view { background: #0b0b0b; }
+  body.dark-mode .messages,
+  body.dark-mode .composer-area { background: #0b0b0b; }
 }
 
 .legal-page { min-height: 100vh; padding: 26px 20px 54px; background: #f8f7fa; }
