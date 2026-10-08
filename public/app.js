@@ -42,6 +42,15 @@ const messages = $("#messages");
 const welcome = $("#welcome");
 const toast = $("#toast");
 
+function syncComposerButtons() {
+  const sendButton = $("#sendButton");
+  const stopButton = $("#stopButton");
+  if (!sendButton || !stopButton) return;
+  const busy = Boolean(state.busy);
+  sendButton.classList.toggle("hidden", busy);
+  stopButton.classList.toggle("hidden", !busy);
+}
+
 const translations = {
   de: {
     newChat: "Neuer Chat", yourChats: "DEINE CHATS", workspaceModels: "Ein Workspace. Alle Modelle.",
@@ -149,25 +158,22 @@ function applyLanguage(language) {
 function applyTheme(theme) {
   const dark = theme === "dark";
   document.body.classList.toggle("dark-mode", dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#f8f8fb");
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#000000" : "#ffffff");
   $("#themeToggle").textContent = dark ? "☀" : "☾";
   $("#themeToggle").setAttribute("aria-label", dark ? "Helles Design aktivieren" : "Dark Mode aktivieren");
   $("#themeToggle").title = dark ? "Helles Design aktivieren" : "Dark Mode aktivieren";
 }
 
-const storedTheme = localStorage.getItem("ai-studio-theme");
-const isSmallMobileViewport = window.matchMedia("(max-width: 540px)").matches;
-const initialTheme = isSmallMobileViewport && storedTheme !== "light" ? "light" : (storedTheme === "dark" ? "dark" : "light");
-
-if (isSmallMobileViewport && storedTheme === "dark") {
+if (localStorage.getItem("ai-studio-theme") === "dark") {
   localStorage.setItem("ai-studio-theme", "light");
 }
 
-applyTheme(initialTheme);
+applyTheme("light");
+syncComposerButtons();
 $("#themeToggle").addEventListener("click", () => {
-  const theme = document.body.classList.contains("dark-mode") ? "light" : "dark";
-  localStorage.setItem("ai-studio-theme", theme);
-  applyTheme(theme);
+  const nextTheme = document.body.classList.contains("dark-mode") ? "light" : "dark";
+  localStorage.setItem("ai-studio-theme", nextTheme);
+  applyTheme(nextTheme);
 });
 
 function escapeHTML(value) {
@@ -1132,8 +1138,7 @@ async function sendMessage(text) {
   state.busy = true;
   const controller = new AbortController();
   state.requestController = controller;
-  $("#sendButton").classList.add("hidden");
-  $("#stopButton").classList.remove("hidden");
+  syncComposerButtons();
   $("#loadingIndicator").classList.remove("hidden");
   appendMessage({ role: "user", content: message });
   messageInput.value = "";
@@ -1205,8 +1210,7 @@ async function sendMessage(text) {
   } finally {
     state.busy = false;
     state.requestController = null;
-    $("#sendButton").classList.remove("hidden");
-    $("#stopButton").classList.add("hidden");
+    syncComposerButtons();
     $("#stopButton").disabled = false;
     $("#stopButton").setAttribute("aria-label", "Antwort stoppen");
     $("#stopButton").title = "Antwort stoppen";
