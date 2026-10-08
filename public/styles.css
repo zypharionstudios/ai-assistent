@@ -381,9 +381,46 @@ body.dark-mode .web-sources-title { color: #c2bfcb; }
   .add-key-form { grid-template-columns: 1fr; }
   .grant-form { grid-template-columns: 1fr 1fr; }
   body.dark-mode .main-area,
-  body.dark-mode .conversation-view { background: #0b0b0b; }
+  body.dark-mode .conversation-view,
   body.dark-mode .messages,
-  body.dark-mode .composer-area { background: #0b0b0b; }
+  body.dark-mode .composer-area,
+  body.dark-mode .assistant-answer-frame,
+  body.dark-mode .composer,
+  body.dark-mode .web-sources,
+  body.dark-mode .toast,
+  body.dark-mode .topbar,
+  body.dark-mode .model-controls,
+  body.dark-mode .suggestion-card,
+  body.dark-mode .new-chat-button,
+  body.dark-mode .provider-card,
+  body.dark-mode .usage-badge,
+  body.dark-mode .theme-toggle,
+  body.dark-mode .tool-button {
+    background: #fff !important;
+    border-color: #ece8f3 !important;
+    color: #252531 !important;
+  }
+  body.dark-mode .message-content,
+  body.dark-mode .assistant-answer-frame .message-content,
+  body.dark-mode .user .message-content,
+  body.dark-mode .composer textarea,
+  body.dark-mode .composer textarea::placeholder,
+  body.dark-mode .message-meta,
+  body.dark-mode .select-wrap select,
+  body.dark-mode .topbar-context,
+  body.dark-mode .select-caption,
+  body.dark-mode .keyboard-hint,
+  body.dark-mode .composer-footnote,
+  body.dark-mode .tool-button,
+  body.dark-mode .usage-badge,
+  body.dark-mode .theme-toggle,
+  body.dark-mode .context-hint {
+    color: #252531 !important;
+  }
+  body.dark-mode .composer textarea::placeholder {
+    color: #8d8b96 !important;
+  }
+  body.dark-mode .composer { box-shadow: 0 4px 19px #27203908 !important; }
 }
 
 .legal-page { min-height: 100vh; padding: 26px 20px 54px; background: #f8f7fa; }

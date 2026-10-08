@@ -155,7 +155,15 @@ function applyTheme(theme) {
   $("#themeToggle").title = dark ? "Helles Design aktivieren" : "Dark Mode aktivieren";
 }
 
-applyTheme(localStorage.getItem("ai-studio-theme") || "light");
+const storedTheme = localStorage.getItem("ai-studio-theme");
+const isSmallMobileViewport = window.matchMedia("(max-width: 540px)").matches;
+const initialTheme = isSmallMobileViewport && storedTheme !== "light" ? "light" : (storedTheme === "dark" ? "dark" : "light");
+
+if (isSmallMobileViewport && storedTheme === "dark") {
+  localStorage.setItem("ai-studio-theme", "light");
+}
+
+applyTheme(initialTheme);
 $("#themeToggle").addEventListener("click", () => {
   const theme = document.body.classList.contains("dark-mode") ? "light" : "dark";
   localStorage.setItem("ai-studio-theme", theme);
